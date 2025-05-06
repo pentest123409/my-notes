@@ -315,7 +315,7 @@ WMI 通信的初始化始终在 `TCP` 端口 `135` 上进行，成功建立连�
 nmap -p- 10.129.180.203 -T4
 ```
 
-![image-20250506151337800](\image-20250506151337800.png)
+<img src="\image-20250506151337800.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 nmap -p 21,22,53,2121 -sCV -A -O 10.129.180.203  
@@ -337,7 +337,7 @@ chmod 600 id_rsa
 ssh ceil@10.129.180.203 -i id_rsa
 ```
 
-![image-20250506152709012](\image-20250506152709012.png)
+<img src="\image-20250506152709012.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ## footprinter lab medium
 
@@ -345,7 +345,7 @@ ssh ceil@10.129.180.203 -i id_rsa
 nmap 10.129.202.41 #扫描主机常见的1000个端口
 ```
 
-![image-20250506154503704](\image-20250506154503704.png)
+<img src="\image-20250506154503704.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 
 
@@ -353,13 +353,13 @@ nmap 10.129.202.41 #扫描主机常见的1000个端口
 nmap -p 111,135,139,445,2049,3389 -sCV -A -O 10.129.202.41  
 ```
 
-![image-20250506155153883](\image-20250506155153883.png)
+<img src="\image-20250506155153883.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 showmount -e 10.129.202.41
 ```
 
-![image-20250506155616246](\image-20250506155616246.png)
+<img src="\image-20250506155616246.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 mkdir targer-NFS
@@ -368,13 +368,13 @@ cd ./targer-NFS/
 ls -al
 ```
 
-![image-20250506155914126](\image-20250506155914126.png)
+<img src="\image-20250506155914126.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 cat ticket4238791283782.txt
 ```
 
-![image-20250506160015249](\image-20250506160015249.png)
+<img src="\image-20250506160015249.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 killall openvpn #先把所有vpn杀掉
@@ -390,4 +390,4 @@ smbclient -U alex \\\\10.129.141.255\\devshare
 xfreerdp /timeout:60000 /v:10.129.141.255 /u:Administrator /p:'87N1ns@slls83' /cert:ignore /d:WINMEDIUM /dynamic-resolution
 ```
 
-![783ABCEE-3E44-45ba-A516-6FDDC3D934E2](\783ABCEE-3E44-45ba-A516-6FDDC3D934E2.png)
+<img src="\783ABCEE-3E44-45ba-A516-6FDDC3D934E2.png" alt="image-20250506151633677" style="zoom:50%;" />
