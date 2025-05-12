@@ -558,7 +558,7 @@ nmap -p 53231 -sV 94.237.49.101
 gobuster vhost -u http://web1337.inlanefreight.htb:31591 -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt --append-domain -t 50 -k
 ```
 
-<img src="\image-20250512154801344.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src="\image-20250512154801344.png" alt="image-20250512154801344.png" style="zoom:50%;" />
 
 # 钓鱼邮件甄别
 
