@@ -1417,9 +1417,40 @@ python3 windapsearch.py --dc-ip 172.16.5.5 -u forend@inlanefreight.local -p Klmc
 sudo bloodhound-python -u 'forend' -p 'Klmcargo2' -ns 172.16.5.5 -d inlanefreight.local -c all
 ```
 
+## 6.6 Windows凭证枚举
 
+```powershell-session
+Import-Module ActiveDirectory
 
+Get-Module
 
+Get-ADDomain
+
+Get-ADUser -Filter {ServicePrincipalName -ne "$null"} -Properties ServicePrincipalName
+
+Get-ADTrust -Filter *
+
+Get-ADGroup -Filter * | select name
+
+Get-ADGroupMember -Identity "Backup Operators" #组成员资格
+
+Get-DomainUser -Identity mmorgan -Domain inlanefreight.local | Select-Object -Property 
+name,samaccountname,description,memberof,whencreated,pwdlastset,lastlogontimestamp,accountexpires,admincount,userprincipalname,serviceprincipalname,useraccountcontrol
+
+Get-DomainGroupMember -Identity "Domain Admins" -Recurse
+
+Get-DomainTrustMapping
+
+Test-AdminAccess -ComputerName ACADEMY-EA-MS01
+
+Get-DomainUser -SPN -Properties samaccountname,ServicePrincipalName
+
+.\SharpView.exe Get-DomainUser -Identity forend
+
+Snaffler.exe -s -d inlanefreight.local -o snaffler.log -v data
+
+.\SharpView.exe -c All --zipfilename ILFREIGHT
+```
 
 
 
