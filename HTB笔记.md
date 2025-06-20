@@ -1452,31 +1452,111 @@ Snaffler.exe -s -d inlanefreight.local -o snaffler.log -v data
 .\SharpView.exe -c All --zipfilename ILFREIGHT
 ```
 
+## 6.7 实践 Living off the land
 
+**使用 PowerShell 进行快速检查**
 
+```
+Get-Module
+Get-ChildItem Env: | ft key,value
+```
 
+许多防御者不知道主机上经常存在多个版本的 PowerShell。如果未卸载，它们仍然可以使用。Powershell 事件日志记录是作为 Powershell 3.0 及更高版本的一项功能引入的。考虑到这一点，我们可以尝试调用 Powershell 版本 2.0 或更早版本。如果成功，我们在 shell 中的作将不会记录在 Event Viewer 中。这对我们来说是一个很好的方式，既可以保持在防守方的雷达下，同时仍然利用主机内置的资源来发挥我们的优势。
 
+**降级 Powershell**
 
+```powershell-session
+powershell.exe -version 2
+```
 
+攻击禁用ScriptBlock Logging
 
+ **防火墙检查**
 
+```
+netsh advfirewall show allprofiles
+```
 
+**WindowsDefender检查**
 
+```cmd-session
+sc query windefend
+```
 
+**检查状态和配置设置**
 
+```powershell-session
+ Get-MpComputerStatus
+```
 
+**查看是否是唯一登录的人**
 
+```powershell-session
+qwinsta
+```
 
+**其他的一些信息收集**
 
+```powershell-session
+arp -a
+ipconfig /all
+route print
+```
 
+**WMI收集**
 
+```
+wmic qfe get Caption,Description,HotFixID,InstalledOn #打印已应用修补程序的修补程序级别和描述
+wmic computersystem get Name,Domain,Manufacturer,Model,Username,Roles /format:List #显示基本主机信息以包括列表中的任何属性
+wmic process list /format:list #主机上所有进程的列表
+wmic ntdomain list /format:list #显示有关域和域控制器的信息
+wmic useraccount list /format:list #显示有关已登录到设备的所有本地帐户和任何域帐户的信息
+wmic group list /format:list #有关所有本地组的信息
+wmic sysaccount list /format:list #转储有关用作服务账户的任何系统账户的信息
+wmic ntdomain get Caption,Description,DnsForestName,DomainName,DomainControllerAddress
+```
 
+net容易被EDR监控，营销助理的账户运行 `whoami` 和 `net localgroup administrators` 等命令。对于任何严重监控网络的人来说，这可能是一个明显的危险信号。
 
+**Net 命令表**
 
+```
+net accounts#有关密码要求的信息
+net accounts /domain #密码和锁定策略
+net group /domain #有关域组的信息
+net group "Domain Admins" /domain #列出具有域管理员权限的用户
+net group "domain computers" /domain #连接到域的 PC 列表
+net group "Domain Controllers" /domain #列出域控制器的 PC 帐户
+net group <domain_group_name> /domain #属于该组的用户
+net groups /domain #域组列表
+net localgroup #所有可用组
+net localgroup administrators /domain #列出属于域内 administrators 组的用户（默认情况下，此处包含 Domain Admins 组）
+net localgroup Administrators  #有关组 （admins） 的信息
+net localgroup administrators [username] /add #将用户添加到管理员
+net share #查看网络共享
+net user <ACCOUNT_NAME> /domain #获取有关域中用户的信息
+net user /domain #列出域的所有用户
+net user %username% #有关当前用户的信息
+net use x: \computer\share #在本地挂载共享
+net view #获取计算机列表
+net view /all /domain[:domainname] #域上的共享
+net view \computer /ALL #列出计算机的共享
+net view /domain #域的 PC 列表
+```
 
+如果您认为网络防御者正在积极记录/查找任何异常命令，您可以尝试使用 net 命令的解决方法。键入 `net1` 而不是 `net` 将执行相同的函数，而不会从 net 字符串中触发。
 
+**C:\Windows\System32\dsquery.dll**
 
+```powershell-session
+dsquery user
+dsquery computer
+dsquery * "CN=Users,DC=INLANEFREIGHT,DC=LOCAL"
+dsquery * -filter "(&(objectCategory=person)(objectClass=user)(userAccountControl:1.2.840.113556.1.4.803:=32))" -attr distinguishedName userAccountControl
+dsquery * -filter "(userAccountControl:1.2.840.113556.1.4.803:=8192)" -limit 5 -attr sAMAccountName
+```
 
+ `userAccountControl:1.2.840.113556.1.4.803:=8192` .这些字符串是常见的 LDAP 查询，也可以与多种不同的工具一起使用，包括 AD PowerShell、ldapsearch 等。`=8192` 表示我们想要在此搜索中匹配的十进制位掩码。此十进制数对应于相应的 UAC 属性标志，该标志确定是否`不需要密码`等属性或设置了`帐户已锁定 `。这些值可以复合并生成多个不同的 bit entry。
 
 
 
