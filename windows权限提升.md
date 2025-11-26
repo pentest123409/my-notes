@@ -1418,3 +1418,18 @@ netsh wlan show profile
 ```cmd-session
 netsh wlan show profile ilfreight_corp key=clear
 ```
+
+# 7、受限环境
+
+## 7.1绕路径限制
+
+通过 Citrix 部署的众多桌面应用程序都具备与作系统文件交互的功能。诸如保存、另存为、打开、加载、浏览、导入、导出、帮助、搜索、扫描和打印等功能，通常为攻击者提供调用 Windows 对话框的机会。在 Windows 中，使用绘画、记事本、文字板等工具打开对话框有多种方式。本节我们将以 `MS Paint` 为例。
+
+Run `Paint` from start menu and click on `File > Open` to open the Dialog Box.
+从开始菜单运行`绘画 `，点击 `“文件 > 打开 `”以打开对话框。打开 Windows 绘制对话框后，我们可以在文件名字段下输入 [UNC](https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats#unc-paths) 路径 `\\127.0.0.1\c$\users\pmorgan`，并将 File-Type 设置为`所有文件 `，按下回车后即可访问所需的目录。
+
+一旦建立对命令提示符的访问权限，就可以更容易地搜索系统中的漏洞。例如，[Winpeas](https://github.com/carlospolop/PEASS-ng/tree/master/winPEAS) 和 [PowerUp](https://github.com/PowerShellEmpire/PowerTools/blob/master/PowerUp/PowerUp.ps1) 等工具也可用于识别作系统中的潜在安全问题和漏洞。
+
+同样，当默认注册表编辑器被组策略阻挡时，可以使用替代的注册表编辑器来绕过标准组策略的限制。[Simpleregedit](https://sourceforge.net/projects/simpregedit/)、[Uberregedit](https://sourceforge.net/projects/uberregedit/) 和 [SmallRegistryEditor](https://sourceforge.net/projects/sre/) 是此类 GUI 工具的例子，它们便于编辑 Windows 注册表而不受组策略阻断的影响。这些工具为管理注册表设置提供了实用且有效的解决方案，适用于此类受限环境。
+
+市面上有许多 [UAC 绕过](https://github.com/FuzzySecurity/PowerShell-Suite/tree/master/Bypass-UAC)脚本，旨在帮助绕过主动的用户账户控制（UAC）机制。这些脚本提供了绕过 UAC 限制并获得更高权限的方法。
