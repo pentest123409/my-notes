@@ -1142,7 +1142,7 @@ kerbrute userenum -d INLANEFREIGHT.LOCAL --dc 172.16.5.5 jsmith.txt -o valid_ad_
 
 ## 6.2 网络中毒
 
-对链路本地组播名称解析 （LLMNR，端口5355） 和 NetBIOS 名称服务 （NBT-NS，端口137） 广播的中间人攻击。
+**对链路本地组播名称解析 （LLMNR，端口5355） 和 NetBIOS 名称服务 （NBT-NS，端口137） 广播的中间人攻击。**
 
 这种攻击可能会提供可以离线破解的低权限或管理级别密码哈希，甚至是明文凭据。哈希值有时也可用于执行 SMB 中继攻击，以使用管理权限向域中的一个或多个主机进行身份验证，而无需离线破解密码哈希值。
 
@@ -1212,6 +1212,14 @@ Get-ChildItem $regkey |foreach { Set-ItemProperty -Path "$regkey\$($_.pschildnam
 ```
 
 最后,监视注册表项 `HKLM\Software\Policies\Microsoft\Windows NT\DNSClient` 中 `EnableMulticast` DWORD 值的更改。值为 `0` 表示 LLMNR 已禁用。
+
+其他缓解措施包括过滤网络流量以阻断 LLMNR/NetBIOS 流量，以及启用 SMB 签名以防止 NTLM 中继攻击。网络入侵检测和防御系统也可以用于缓解此类活动，而网络分段则可用于隔离需要启用 LLMNR 或 NetBIOS 才能正常运行的主机。
+
+**检测：**
+
+LLMNR 和 NetBIOS 并不总是能禁用，因此我们需要方法来检测这类攻击行为。一种方法是通过向不同子网的不存在主机注入 LLMNR 和 NBT-NS 请求，并在任何响应收到回复时发出警报，这表明攻击者伪造了名称解析响应。
+
+此外，可以监控主机在 UDP 5355 和 137 端口上的流量，以及事件 ID [4697](https://docs.microsoft.com/en-us/windows/security/threat-protection/auditing/event-4697) 和 [7045](https://www.manageengine.com/products/active-directory-audit/kb/system-events/event-id-7045.html) 的监控。最后，我们可以监控注册表密钥 `HKLM\Software\Policies\Microsoft\Windows NT\DNSClient` 对 `EnableMulticast` DWORD 值的变化。值为 `0` 则表示 LLMNR 已被禁用。
 
 ## 6.3 密码喷射
 
