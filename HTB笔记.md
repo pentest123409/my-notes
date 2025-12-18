@@ -1263,6 +1263,8 @@ net use \\DC01\ipc$ "" /u:""
 
 方式３：Linux LDAP 匿名
 
+**在 LDAP 路径中的位置**CN 一般出现在 LDAP 专有名称（DN）的**最前端**，后面跟着组织单元（OU）、域组件（DC）等层级信息。例如完整的用户 DN：`CN=张三,OU=研发部,DC=inlanefreight,DC=local`含义就是：域 `inlanefreight.local` 下，`研发部` 组织单元里的用户 `张三`。
+
 ```
 ### 使用 ldapsearch ###
 ldapsearch -h 172.16.5.5 -x -b "DC=INLANEFREIGHT,DC=LOCAL" -s sub "*" | grep -m 1 -B 10 pwdHistoryLength 新版中用-H代替了-h
